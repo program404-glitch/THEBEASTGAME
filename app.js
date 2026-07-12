@@ -649,6 +649,8 @@ function describeAuthError(error) {
     case 'auth/invalid-email':
       return 'That username contains characters that are not allowed.';
     case 'auth/wrong-password':
+    case 'auth/invalid-credential':
+    case 'auth/invalid-login-credentials':
       return 'Wrong password. Please try again.';
     case 'auth/user-not-found':
       return 'No account found with that username.';
@@ -691,8 +693,18 @@ async function handleLogin(event) {
     await auth.signInWithEmailAndPassword(email, password);
     // onAuthStateChanged will load the Firestore doc and re-render.
   } catch (error) {
-    if (error.code === 'auth/user-not-found') {
-      // No account yet with this username -> create one.
+    // Newer Firebase projects have "email enumeration protection" enabled,
+    // which replaces the old specific auth/user-not-found /
+    // auth/wrong-password codes with a single generic
+    // auth/invalid-credential (INVALID_LOGIN_CREDENTIALS) error — for
+    // both "no such account" AND "wrong password". Since this game
+    // auto-creates an account on first login, we can no longer tell which
+    // case we're in just from the sign-in error. So: try to create the
+    // account. If that fails because the username is already taken, we
+    // then know it really was a wrong password.
+    const ambiguousCodes = ['auth/user-not-found', 'auth/invalid-credential', 'auth/invalid-login-credentials'];
+
+    if (ambiguousCodes.includes(error.code)) {
       try {
         suppressNextAuthMessage = true;
         const credential = await auth.createUserWithEmailAndPassword(email, password);
@@ -702,7 +714,13 @@ async function handleLogin(event) {
         setAuthMessage(`Account created for ${username}.`);
         render();
       } catch (signUpError) {
-        setAuthMessage(describeAuthError(signUpError));
+        if (signUpError.code === 'auth/email-already-in-use') {
+          // The account does exist after all — the original error meant
+          // the password was wrong.
+          setAuthMessage('Wrong password. Please try again.');
+        } else {
+          setAuthMessage(describeAuthError(signUpError));
+        }
       }
     } else {
       setAuthMessage(describeAuthError(error));
