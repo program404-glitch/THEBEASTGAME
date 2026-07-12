@@ -11,12 +11,13 @@
 // ============================================================
 
 const firebaseConfig = {
-  apiKey: "INSERISCI_QUI_LA_TUA_API_KEY",
-  authDomain: "INSERISCI_QUI.firebaseapp.com",
-  projectId: "INSERISCI_QUI_IL_PROJECT_ID",
-  storageBucket: "INSERISCI_QUI.appspot.com",
-  messagingSenderId: "INSERISCI_QUI",
-  appId: "INSERISCI_QUI"
+  apiKey: "AIzaSyAgaM_9XjxNerXDHJAb7-ASzS9hf1OYIz8",
+  authDomain: "thebeastgame.firebaseapp.com",
+  projectId: "thebeastgame",
+  storageBucket: "thebeastgame.firebasestorage.app",
+  messagingSenderId: "964213992946",
+  appId: "1:964213992946:web:e8570efb42fb453e684f6b",
+  measurementId: "G-HB4YB5CG8Q"
 };
 
 firebase.initializeApp(firebaseConfig);
