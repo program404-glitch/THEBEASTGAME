@@ -8,8 +8,8 @@ const CARDS = [
   { id: 7, name: 'Beast', emoji: '🦁', type: 'Legendary', hp: 98, attack: 28, defense: 22, speed: 7, special: 19, ability: 'Wild Charge', rarity: 'Legendary', image: 'assets/lumin.svg' }
 ];
 
-const STORAGE_KEY = 'beast-pocket-save-v1';
-const SHARED_ACCOUNT_URL = 'https://jsonblob.com/api/jsonBlob/019f5646-8e12-7ac1-8e76-2801c7553130';
+const AVATAR_OPTIONS = ['🦁', '🐺', '🦈', '🐆', '🐅', '🐻', '🐉', '🦂'];
+
 const TYPE_PRICES = {
   Fire: 8,
   Water: 9,
@@ -25,7 +25,10 @@ const TYPE_PRICES = {
   Bear: 11,
   Legendary: 15
 };
+
 const DEFAULT_STATE = {
+  username: null,
+  avatar: AVATAR_OPTIONS[0],
   collection: [1, 2],
   deck: [1, 2],
   selectedCardId: 1,
@@ -33,80 +36,30 @@ const DEFAULT_STATE = {
   lastPackOpenDate: null,
   coins: 0,
   battleMode: 'automatic',
-  loggedInUser: null
+  lastBattleSummary: '',
+  lastCpuCardId: null
 };
 
-let state = loadState();
+// `state` holds only game/profile data. Auth itself (who is logged in,
+// password checks) is entirely handled by Firebase Auth — we never touch
+// passwords here.
+let state = { ...DEFAULT_STATE };
+let currentUser = null; // Firebase Auth user object, or null when logged out
+let suppressNextAuthMessage = false;
 
-function loadState() {
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    return raw ? { ...DEFAULT_STATE, ...JSON.parse(raw) } : { ...DEFAULT_STATE };
-  } catch {
-    return { ...DEFAULT_STATE };
-  }
-}
+const auth = firebase.auth();
+const db = firebase.firestore();
 
-function saveState() {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
-}
-
-async function hashPassword(password) {
-  const encoder = new TextEncoder();
-  const data = encoder.encode(password);
-  const hashBuffer = await crypto.subtle.digest('SHA-256', data);
-  return Array.from(new Uint8Array(hashBuffer)).map(byte => byte.toString(16).padStart(2, '0')).join('');
-}
-
-async function loadRemoteUsers() {
-  try {
-    const response = await fetch(SHARED_ACCOUNT_URL, { headers: { Accept: 'application/json' } });
-    if (!response.ok) throw new Error('Unable to load shared users');
-    const data = await response.json();
-    return data && typeof data === 'object' && data.users ? data.users : {};
-  } catch (error) {
-    console.warn('Shared account sync unavailable:', error);
-    return {};
-  }
-}
-
-async function saveRemoteUsers(users) {
-  try {
-    const response = await fetch(SHARED_ACCOUNT_URL, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ users })
-    });
-    if (!response.ok) throw new Error('Unable to save shared users');
-    return true;
-  } catch (error) {
-    console.warn('Could not save shared account data:', error);
-    return false;
-  }
-}
-
-function getSerializableStateForAccount() {
-  return {
-    collection: Array.isArray(state.collection) ? [...state.collection] : [...DEFAULT_STATE.collection],
-    deck: Array.isArray(state.deck) ? [...state.deck] : [...DEFAULT_STATE.deck],
-    selectedCardId: state.selectedCardId ?? DEFAULT_STATE.selectedCardId,
-    battleLog: Array.isArray(state.battleLog) ? [...state.battleLog] : [...DEFAULT_STATE.battleLog],
-    lastPackOpenDate: state.lastPackOpenDate ?? DEFAULT_STATE.lastPackOpenDate,
-    coins: state.coins ?? DEFAULT_STATE.coins,
-    battleMode: state.battleMode ?? DEFAULT_STATE.battleMode,
-    lastBattleSummary: state.lastBattleSummary ?? '',
-    lastCpuCardId: state.lastCpuCardId
-  };
-}
-
-async function syncCurrentAccountState() {
-  if (!state.loggedInUser || !state.passwordHash) return;
-  const users = await loadRemoteUsers();
-  users[state.loggedInUser] = {
-    passwordHash: state.passwordHash,
-    state: getSerializableStateForAccount()
-  };
-  await saveRemoteUsers(users);
+// ---------------------------------------------------------------
+// Helpers: username <-> Firebase Auth email mapping
+// ---------------------------------------------------------------
+// Firebase Auth's email/password provider requires an email address.
+// Since this game logs people in with a plain username, we deterministically
+// turn a username into a fake-but-valid email under a fixed domain. The
+// address is never actually used to send mail.
+function usernameToEmail(username) {
+  const normalized = username.trim().toLowerCase().replace(/\s+/g, '_');
+  return `${normalized}@beastpocket.local`;
 }
 
 function getCardById(cardId) {
@@ -117,39 +70,140 @@ function getTodayKey() {
   return new Date().toISOString().slice(0, 10);
 }
 
+// ---------------------------------------------------------------
+// Firestore sync
+// ---------------------------------------------------------------
+function getSerializableStateForAccount() {
+  return {
+    username: state.username,
+    avatar: state.avatar || AVATAR_OPTIONS[0],
+    collection: Array.isArray(state.collection) ? [...state.collection] : [...DEFAULT_STATE.collection],
+    deck: Array.isArray(state.deck) ? [...state.deck] : [...DEFAULT_STATE.deck],
+    selectedCardId: state.selectedCardId ?? DEFAULT_STATE.selectedCardId,
+    battleLog: Array.isArray(state.battleLog) ? [...state.battleLog] : [...DEFAULT_STATE.battleLog],
+    lastPackOpenDate: state.lastPackOpenDate ?? DEFAULT_STATE.lastPackOpenDate,
+    coins: state.coins ?? DEFAULT_STATE.coins,
+    battleMode: state.battleMode ?? DEFAULT_STATE.battleMode,
+    lastBattleSummary: state.lastBattleSummary ?? '',
+    lastCpuCardId: state.lastCpuCardId ?? null
+  };
+}
+
+async function persist() {
+  render();
+  if (!currentUser) return;
+  try {
+    await db.collection('users').doc(currentUser.uid).set(getSerializableStateForAccount(), { merge: true });
+  } catch (error) {
+    console.warn('Could not sync to Firestore:', error);
+    setAuthMessage('Could not save to the cloud. Check your connection.');
+  }
+}
+
+async function loadStateFromFirestore(uid) {
+  const doc = await db.collection('users').doc(uid).get();
+  if (doc.exists) {
+    return { ...DEFAULT_STATE, ...doc.data() };
+  }
+  return null;
+}
+
+// ---------------------------------------------------------------
+// Auth state
+// ---------------------------------------------------------------
+auth.onAuthStateChanged(async (user) => {
+  currentUser = user;
+
+  if (!user) {
+    state = { ...DEFAULT_STATE };
+    if (!suppressNextAuthMessage) {
+      setAuthMessage('Enter any username and password to continue.');
+    }
+    suppressNextAuthMessage = false;
+    render();
+    return;
+  }
+
+  const existing = await loadStateFromFirestore(user.uid);
+  if (existing) {
+    state = existing;
+  } else {
+    // First time this uid has been seen (shouldn't normally happen since we
+    // create the doc at sign-up, but this is a safe fallback).
+    state = { ...DEFAULT_STATE, username: deriveUsernameFromEmail(user.email) };
+    await db.collection('users').doc(user.uid).set(getSerializableStateForAccount());
+  }
+
+  if (!suppressNextAuthMessage) {
+    setAuthMessage(`Welcome back, ${state.username}!`);
+  }
+  suppressNextAuthMessage = false;
+  render();
+});
+
+function deriveUsernameFromEmail(email) {
+  return email.split('@')[0];
+}
+
+function setAuthMessage(text) {
+  const authMessage = document.getElementById('auth-message');
+  if (authMessage) authMessage.textContent = text;
+}
+
+// ---------------------------------------------------------------
+// Rendering
+// ---------------------------------------------------------------
 function renderAuth() {
   const loginForm = document.getElementById('login-form');
   const welcomePanel = document.getElementById('welcome-panel');
-  const authMessage = document.getElementById('auth-message');
   const gameContent = document.getElementById('game-content');
 
-  if (!loginForm || !welcomePanel || !authMessage || !gameContent) return;
+  if (!loginForm || !welcomePanel || !gameContent) return;
 
-  if (state.loggedInUser) {
+  if (currentUser) {
     loginForm.classList.add('hidden');
     welcomePanel.classList.remove('hidden');
     gameContent.classList.remove('hidden');
-    welcomePanel.textContent = `Welcome, ${state.loggedInUser}!`;
-    authMessage.textContent = 'You are now logged in.';
+    welcomePanel.textContent = `Welcome, ${state.username}!`;
   } else {
     loginForm.classList.remove('hidden');
     welcomePanel.classList.add('hidden');
     gameContent.classList.add('hidden');
-    authMessage.textContent = 'Enter any username and password to continue.';
+  }
+}
+
+function renderAccountDrawer() {
+  const avatarIcon = document.getElementById('account-avatar-icon');
+  const avatarLarge = document.getElementById('account-avatar-large');
+  const drawerUsername = document.getElementById('account-drawer-username');
+  const avatarPicker = document.getElementById('avatar-picker');
+
+  const avatar = state.avatar || AVATAR_OPTIONS[0];
+  if (avatarIcon) avatarIcon.textContent = avatar;
+  if (avatarLarge) avatarLarge.textContent = avatar;
+  if (drawerUsername) drawerUsername.textContent = state.username || '';
+
+  if (avatarPicker && !avatarPicker.dataset.built) {
+    avatarPicker.innerHTML = AVATAR_OPTIONS.map(option => `
+      <button type="button" class="avatar-option" data-avatar="${option}" aria-label="Choose avatar ${option}">${option}</button>
+    `).join('');
+    avatarPicker.dataset.built = 'true';
+  }
+  if (avatarPicker) {
+    avatarPicker.querySelectorAll('.avatar-option').forEach(button => {
+      button.classList.toggle('selected', button.dataset.avatar === avatar);
+    });
   }
 }
 
 function render() {
   renderAuth();
+  renderAccountDrawer();
   renderDeck();
   renderBook();
   renderBattle();
   renderCoins();
   renderBattleMode();
-  saveState();
-  if (state.loggedInUser && state.passwordHash) {
-    syncCurrentAccountState();
-  }
 }
 
 function renderCoins() {
@@ -169,6 +223,7 @@ function renderBattleMode() {
 function renderDeck() {
   const deckList = document.getElementById('deck-list');
   const deckCount = document.getElementById('deck-count');
+  if (!deckList || !deckCount) return;
   deckCount.textContent = `${state.deck.length} cards`;
 
   if (!state.deck.length) {
@@ -204,6 +259,7 @@ function renderDeck() {
 function renderBook() {
   const bookList = document.getElementById('book-list');
   const collectionCount = document.getElementById('collection-count');
+  if (!bookList || !collectionCount) return;
   collectionCount.textContent = `${state.collection.length}/${CARDS.length} collected`;
 
   bookList.innerHTML = CARDS.map(card => {
@@ -239,6 +295,7 @@ function renderBattle() {
   const cpuPreview = document.getElementById('cpu-preview');
   const battleStatus = document.getElementById('battle-status');
   const battleLog = document.getElementById('battle-log');
+  if (!playerPreview || !cpuPreview || !battleStatus || !battleLog) return;
 
   const playerCard = getCardById(state.selectedCardId) || getCardById(state.deck[0]);
   const cpuCard = getCardById(state.lastCpuCardId) || getCardById(CARDS[3].id);
@@ -290,27 +347,27 @@ function buyCard(cardId) {
   const price = getCardPrice(card);
   if (state.coins < price) {
     state.lastBattleSummary = `You do not have enough coins for ${card.name}.`;
-    render();
+    persist();
     return;
   }
 
   state.coins -= price;
   addCardToDeck(cardId);
   state.lastBattleSummary = `You bought ${card.name} for ${price} coins`;
-  render();
+  persist();
 }
 
 function openPack() {
   if (state.lastPackOpenDate === getTodayKey()) {
     state.lastBattleSummary = 'You already opened a pack today. Come back tomorrow.';
-    render();
+    persist();
     return;
   }
 
   const missing = CARDS.filter(card => !state.collection.includes(card.id));
   if (!missing.length) {
     state.lastBattleSummary = 'You have collected every beast.';
-    render();
+    persist();
     return;
   }
 
@@ -326,7 +383,7 @@ function openPack() {
   state.lastPackOpenDate = getTodayKey();
   state.battleLog.unshift(`You opened a pack and found ${randomCard.emoji} ${randomCard.name}!`);
   state.lastBattleSummary = `New card: ${randomCard.name}`;
-  render();
+  persist();
 }
 
 function chooseCpuCard() {
@@ -341,14 +398,14 @@ function resolveBattle() {
   const playerCard = getCardById(state.selectedCardId) || getCardById(state.deck[0]);
   if (!playerCard) {
     state.lastBattleSummary = 'Add a beast to your deck before fighting.';
-    render();
+    persist();
     return;
   }
 
   const cpuCard = chooseCpuCard();
   if (!cpuCard) {
     state.lastBattleSummary = 'The CPU has no creatures available.';
-    render();
+    persist();
     return;
   }
 
@@ -409,7 +466,7 @@ function resolveBattle() {
 
   state.battleLog = [outcome, ...log, ...state.battleLog].slice(0, 8);
   state.lastBattleSummary = outcome;
-  render();
+  persist();
 }
 
 function askPlayerAction(turn) {
@@ -453,7 +510,7 @@ function handleAction(event) {
   if (action === 'select') {
     state.selectedCardId = cardId;
     state.lastBattleSummary = `You selected ${getCardById(cardId).name}`;
-    render();
+    persist();
   }
 
   if (action === 'buy') {
@@ -461,157 +518,235 @@ function handleAction(event) {
   }
 }
 
-function toggleAccountMenu() {
-  const accountMenu = document.getElementById('account-menu');
-  if (accountMenu) {
-    accountMenu.classList.toggle('hidden');
+// ---------------------------------------------------------------
+// Account drawer (slide-out menu)
+// ---------------------------------------------------------------
+function openAccountDrawer() {
+  const drawer = document.getElementById('account-drawer');
+  if (drawer) drawer.classList.add('open');
+}
+
+function closeAccountDrawer() {
+  const drawer = document.getElementById('account-drawer');
+  if (drawer) drawer.classList.remove('open');
+}
+
+async function reauthenticate(promptLabel) {
+  const password = window.prompt(promptLabel);
+  if (!password) return false;
+  try {
+    const credential = firebase.auth.EmailAuthProvider.credential(currentUser.email, password);
+    await currentUser.reauthenticateWithCredential(credential);
+    return true;
+  } catch (error) {
+    setAuthMessage('Incorrect password. Please try again.');
+    return false;
+  }
+}
+
+async function handleAvatarChange(avatar) {
+  if (!currentUser) return;
+  state.avatar = avatar;
+  await persist();
+}
+
+async function handleChangeUsername() {
+  const newUsername = window.prompt('Enter your new username');
+  if (!newUsername || !newUsername.trim()) return;
+  const username = newUsername.trim();
+  const newEmail = usernameToEmail(username);
+
+  try {
+    await currentUser.updateEmail(newEmail);
+  } catch (error) {
+    if (error.code === 'auth/requires-recent-login') {
+      const ok = await reauthenticate('Please re-enter your current password to confirm this change');
+      if (!ok) return;
+      try {
+        await currentUser.updateEmail(newEmail);
+      } catch (retryError) {
+        setAuthMessage(describeAuthError(retryError));
+        return;
+      }
+    } else {
+      setAuthMessage(describeAuthError(error));
+      return;
+    }
+  }
+
+  state.username = username;
+  await persist();
+  setAuthMessage(`Username updated to ${username}.`);
+}
+
+async function handleChangePassword() {
+  const newPassword = window.prompt('Enter your new password (at least 6 characters)');
+  if (!newPassword || newPassword.trim().length < 6) {
+    if (newPassword !== null) setAuthMessage('Password must be at least 6 characters.');
+    return;
+  }
+
+  try {
+    await currentUser.updatePassword(newPassword.trim());
+  } catch (error) {
+    if (error.code === 'auth/requires-recent-login') {
+      const ok = await reauthenticate('Please re-enter your current password to confirm this change');
+      if (!ok) return;
+      try {
+        await currentUser.updatePassword(newPassword.trim());
+      } catch (retryError) {
+        setAuthMessage(describeAuthError(retryError));
+        return;
+      }
+    } else {
+      setAuthMessage(describeAuthError(error));
+      return;
+    }
+  }
+
+  setAuthMessage('Password updated.');
+}
+
+async function handleLogout() {
+  closeAccountDrawer();
+  await auth.signOut();
+}
+
+async function handleDeleteAccount() {
+  const confirmed = window.confirm('Delete your account? This action cannot be undone.');
+  if (!confirmed) return;
+
+  const uid = currentUser.uid;
+  try {
+    await db.collection('users').doc(uid).delete();
+    await currentUser.delete();
+  } catch (error) {
+    if (error.code === 'auth/requires-recent-login') {
+      const ok = await reauthenticate('Please re-enter your password to confirm account deletion');
+      if (!ok) return;
+      try {
+        await db.collection('users').doc(uid).delete();
+        await currentUser.delete();
+      } catch (retryError) {
+        setAuthMessage(describeAuthError(retryError));
+        return;
+      }
+    } else {
+      setAuthMessage(describeAuthError(error));
+      return;
+    }
+  }
+
+  closeAccountDrawer();
+}
+
+function describeAuthError(error) {
+  switch (error.code) {
+    case 'auth/email-already-in-use':
+      return 'That username is already taken.';
+    case 'auth/weak-password':
+      return 'Password must be at least 6 characters.';
+    case 'auth/invalid-email':
+      return 'That username contains characters that are not allowed.';
+    case 'auth/wrong-password':
+      return 'Wrong password. Please try again.';
+    case 'auth/user-not-found':
+      return 'No account found with that username.';
+    case 'auth/network-request-failed':
+      return 'Network error. Check your connection and try again.';
+    default:
+      return 'Something went wrong. Please try again.';
   }
 }
 
 async function promptAndUpdateAccount(action) {
-  const authMessage = document.getElementById('auth-message');
-  if (!authMessage) return;
+  if (!currentUser) return;
 
-  if (action === 'change-username') {
-    const newUsername = window.prompt('Enter your new username');
-    if (!newUsername || !newUsername.trim()) return;
-    const username = newUsername.trim();
-    const users = await loadRemoteUsers();
-    const currentUser = state.loggedInUser;
-    if (!currentUser) return;
-    const currentEntry = users[currentUser];
-    if (!currentEntry) return;
-    delete users[currentUser];
-    users[username] = {
-      passwordHash: currentEntry.passwordHash,
-      state: currentEntry.state
-    };
-    await saveRemoteUsers(users);
-    state.loggedInUser = username;
-    state.passwordHash = currentEntry.passwordHash;
-    authMessage.textContent = `Username updated to ${username}.`;
-    render();
-    return;
-  }
-
-  if (action === 'change-password') {
-    const newPassword = window.prompt('Enter your new password');
-    if (!newPassword || !newPassword.trim()) return;
-    const passwordHash = await hashPassword(newPassword.trim());
-    const users = await loadRemoteUsers();
-    const currentUser = state.loggedInUser;
-    if (!currentUser) return;
-    const currentEntry = users[currentUser];
-    if (!currentEntry) return;
-    users[currentUser] = {
-      passwordHash,
-      state: currentEntry.state
-    };
-    await saveRemoteUsers(users);
-    state.passwordHash = passwordHash;
-    authMessage.textContent = 'Password updated.';
-    render();
-    return;
-  }
-
-  if (action === 'logout') {
-    state.loggedInUser = null;
-    state.passwordHash = null;
-    authMessage.textContent = 'You have been logged out.';
-    render();
-    return;
-  }
-
-  if (action === 'delete-account') {
-    const confirmed = window.confirm('Delete your account? This action cannot be undone.');
-    if (!confirmed) return;
-    const users = await loadRemoteUsers();
-    const currentUser = state.loggedInUser;
-    if (!currentUser) return;
-    delete users[currentUser];
-    await saveRemoteUsers(users);
-    localStorage.removeItem(STORAGE_KEY);
-    state = { ...DEFAULT_STATE };
-    authMessage.textContent = 'Account deleted.';
-    render();
-  }
+  if (action === 'change-username') return handleChangeUsername();
+  if (action === 'change-password') return handleChangePassword();
+  if (action === 'logout') return handleLogout();
+  if (action === 'delete-account') return handleDeleteAccount();
 }
 
+// ---------------------------------------------------------------
+// Login / sign-up
+// ---------------------------------------------------------------
 async function handleLogin(event) {
   event.preventDefault();
   const usernameInput = document.getElementById('username');
   const passwordInput = document.getElementById('password');
-  const authMessage = document.getElementById('auth-message');
 
   const username = usernameInput.value.trim();
   const password = passwordInput.value.trim();
 
   if (!username || !password) {
-    authMessage.textContent = 'Please enter both username and password.';
+    setAuthMessage('Please enter both username and password.');
     return;
   }
 
-  const passwordHash = await hashPassword(password);
-  const users = await loadRemoteUsers();
-  const existingAccount = users[username];
+  const email = usernameToEmail(username);
+  setAuthMessage('Signing in…');
 
-  if (existingAccount) {
-    if (existingAccount.passwordHash !== passwordHash) {
-      authMessage.textContent = 'Wrong password. Please try again.';
-      return;
+  try {
+    await auth.signInWithEmailAndPassword(email, password);
+    // onAuthStateChanged will load the Firestore doc and re-render.
+  } catch (error) {
+    if (error.code === 'auth/user-not-found') {
+      // No account yet with this username -> create one.
+      try {
+        suppressNextAuthMessage = true;
+        const credential = await auth.createUserWithEmailAndPassword(email, password);
+        const newState = { ...DEFAULT_STATE, username };
+        await db.collection('users').doc(credential.user.uid).set(newState);
+        state = newState;
+        setAuthMessage(`Account created for ${username}.`);
+        render();
+      } catch (signUpError) {
+        setAuthMessage(describeAuthError(signUpError));
+      }
+    } else {
+      setAuthMessage(describeAuthError(error));
     }
-
-    state = {
-      ...DEFAULT_STATE,
-      ...(existingAccount.state || {}),
-      loggedInUser: username,
-      passwordHash
-    };
-    authMessage.textContent = `Welcome back, ${username}!`;
-  } else {
-    state = {
-      ...DEFAULT_STATE,
-      loggedInUser: username,
-      passwordHash
-    };
-    users[username] = {
-      passwordHash,
-      state: getSerializableStateForAccount()
-    };
-    await saveRemoteUsers(users);
-    authMessage.textContent = `Account created for ${username}.`;
+    return;
   }
 
   usernameInput.value = '';
   passwordInput.value = '';
-  render();
 }
 
 document.addEventListener('click', (event) => {
-  const accountToggle = event.target.closest('#account-menu-toggle');
-  if (accountToggle) {
-    toggleAccountMenu();
+  if (event.target.closest('#account-menu-toggle')) {
+    openAccountDrawer();
     return;
   }
 
-  const accountButton = event.target.closest('button[data-action]');
-  if (accountButton) {
-    const action = accountButton.dataset.action;
-    if (action && action.startsWith('change-') || action === 'logout' || action === 'delete-account') {
-      promptAndUpdateAccount(action);
-      return;
-    }
+  if (event.target.closest('#account-drawer-close') || event.target.closest('#account-drawer-backdrop')) {
+    closeAccountDrawer();
+    return;
+  }
+
+  const avatarOption = event.target.closest('.avatar-option');
+  if (avatarOption) {
+    handleAvatarChange(avatarOption.dataset.avatar);
+    return;
+  }
+
+  const drawerButton = event.target.closest('#account-drawer button[data-action]');
+  if (drawerButton) {
+    promptAndUpdateAccount(drawerButton.dataset.action);
+    return;
   }
 
   handleAction(event);
 });
+
 document.getElementById('login-form').addEventListener('submit', handleLogin);
 document.getElementById('open-pack').addEventListener('click', openPack);
 document.getElementById('battle-btn').addEventListener('click', resolveBattle);
 document.getElementById('battle-mode').addEventListener('change', (event) => {
   state.battleMode = event.target.value;
   state.lastBattleSummary = event.target.value === 'manual' ? 'Manual mode active' : 'Automatic mode active';
-  render();
+  persist();
 });
 
 render();

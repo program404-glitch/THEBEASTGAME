@@ -5,6 +5,14 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Beast Pocket</title>
     <link rel="stylesheet" href="styles.css" />
+    <link rel="stylesheet" href="account-drawer.css" />
+
+    <!-- Firebase (compat SDK, works with plain <script> tags, no build step needed) -->
+    <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+    <script src="firebase-config.js"></script>
+
     <script src="app.js" defer></script>
   </head>
   <body>
@@ -42,15 +50,9 @@
               <option value="manual">Manual</option>
             </select>
           </label>
-          <div class="account-menu-wrapper">
-            <button id="account-menu-toggle" class="secondary" type="button">Account</button>
-            <div id="account-menu" class="account-menu hidden">
-              <button type="button" data-action="change-username">Change username</button>
-              <button type="button" data-action="change-password">Change password</button>
-              <button type="button" data-action="logout">Log out</button>
-              <button type="button" class="danger" data-action="delete-account">Delete account</button>
-            </div>
-          </div>
+          <button id="account-menu-toggle" class="account-avatar-btn" type="button" aria-label="Open account menu">
+            <span id="account-avatar-icon">🦁</span>
+          </button>
           <button id="open-pack">Open pack</button>
           <button id="battle-btn">Battle CPU</button>
         </div>
@@ -103,6 +105,27 @@
         <a href="https://www.tiktok.com/@thebeastgameproject?lang=it-IT" target="_blank" rel="noopener noreferrer">TikTok</a>
       </footer>
       </div>
+    </div>
+
+    <!-- Slide-out account menu -->
+    <div id="account-drawer" class="account-drawer">
+      <div id="account-drawer-backdrop" class="account-drawer-backdrop"></div>
+      <aside class="account-drawer-panel">
+        <button id="account-drawer-close" class="account-drawer-close" type="button" aria-label="Close menu">&times;</button>
+
+        <div class="account-drawer-profile">
+          <div id="account-avatar-large" class="account-avatar-large">🦁</div>
+          <h3 id="account-drawer-username">Username</h3>
+          <div id="avatar-picker" class="avatar-picker"></div>
+        </div>
+
+        <nav class="account-drawer-actions">
+          <button type="button" data-action="change-username">Change username</button>
+          <button type="button" data-action="change-password">Change password</button>
+          <button type="button" data-action="logout">Log out</button>
+          <button type="button" class="danger" data-action="delete-account">Delete account</button>
+        </nav>
+      </aside>
     </div>
   </body>
 </html>
