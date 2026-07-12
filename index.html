@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="it">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Beast Pocket</title>
+    <link rel="stylesheet" href="styles.css" />
+    <script src="app.js" defer></script>
+  </head>
+  <body>
+    <div class="app-shell">
+      <header class="hero">
+        <div>
+          <p class="eyebrow">by Luca Montarello</p>
+          <h1>The Beast Game</h1>
+          <p class="subtitle">Colleziona creature, costruisci il tuo mazzo e sfida la CPU.</p>
+        </div>
+        <div class="hero-actions">
+          <span id="coin-count" class="mode-status">Monete: 0</span>
+          <label class="mode-status" for="battle-mode">
+            Modalità:
+            <select id="battle-mode">
+              <option value="automatic">Automatica</option>
+              <option value="manual">Manuale</option>
+            </select>
+          </label>
+          <button id="open-pack">Apri bustina</button>
+          <button id="battle-btn">Battaglia CPU</button>
+        </div>
+      </header>
+
+      <p id="mode-status" class="mode-status">Una bustina al giorno</p>
+
+      <main class="layout">
+        <section class="panel">
+          <div class="panel-title-row">
+            <h2>Il tuo mazzo</h2>
+            <span id="deck-count">0 carte</span>
+          </div>
+          <div id="deck-list" class="card-list"></div>
+        </section>
+
+        <section class="panel">
+          <div class="panel-title-row">
+            <h2>Megafolder</h2>
+            <span id="collection-count">0/6 raccolte</span>
+          </div>
+          <div id="book-list" class="card-list book-list"></div>
+        </section>
+
+        <section class="panel battle-panel">
+          <div class="panel-title-row">
+            <h2>Battaglia</h2>
+            <span id="battle-status">Scegli una creatura</span>
+          </div>
+          <div class="battle-area">
+            <div class="fighter-card player-card">
+              <h3>Tu</h3>
+              <div id="player-preview" class="fighter-preview"></div>
+            </div>
+            <div class="vs">VS</div>
+            <div class="fighter-card cpu-card">
+              <h3>CPU</h3>
+              <div id="cpu-preview" class="fighter-preview"></div>
+            </div>
+          </div>
+          <div id="battle-log" class="battle-log"></div>
+        </section>
+      </main>
+
+      <footer class="page-footer">
+        <a href="https://discord.com/channels/1525622351012696124/1525622351834648709" target="_blank" rel="noopener noreferrer">Discord</a>
+        <span class="footer-separator">•</span>
+        <a href="https://web.telegram.org/k/#-5326188102" target="_blank" rel="noopener noreferrer">Telegram</a>
+        <span class="footer-separator">•</span>
+        <a href="https://www.tiktok.com/@thebeastgameproject?lang=it-IT" target="_blank" rel="noopener noreferrer">TikTok</a>
+      </footer>
+    </div>
+  </body>
+</html>
