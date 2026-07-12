@@ -1,13 +1,21 @@
 const COLLECTION_NAME = 'The First Collection';
 
-const HERO_CARDS = [
-  { id: 1, name: 'Roaring', emoji: '🦁', type: 'Predator', hp: 82, attack: 26, defense: 18, speed: 7, special: 16, ability: 'Rend', rarity: 'Common', image: 'assets/bestia.svg' },
-  { id: 2, name: 'Wolven', emoji: '🐺', type: 'Wolf', hp: 78, attack: 24, defense: 16, speed: 9, special: 15, ability: 'Howl', rarity: 'Common', image: 'assets/vex.svg' },
-  { id: 3, name: 'Maw', emoji: '🦈', type: 'Ocean', hp: 90, attack: 25, defense: 20, speed: 6, special: 18, ability: 'Charge', rarity: 'Rare', image: 'assets/marek.svg' },
-  { id: 4, name: 'Jaguar', emoji: '🐆', type: 'Feline', hp: 80, attack: 23, defense: 17, speed: 8, special: 17, ability: 'Stealth', rarity: 'Rare', image: 'assets/glacor.svg' },
-  { id: 5, name: 'Claw', emoji: '🐅', type: 'Feline', hp: 77, attack: 27, defense: 15, speed: 10, special: 20, ability: 'Fang', rarity: 'Epic', image: 'assets/dravik.svg' },
-  { id: 6, name: 'Black Bear', emoji: '🐻', type: 'Bear', hp: 92, attack: 22, defense: 19, speed: 8, special: 16, ability: 'Stare', rarity: 'Epic', image: 'assets/pyrox.svg' },
-  { id: 7, name: 'Beast', emoji: '🦁', type: 'Legendary', hp: 98, attack: 28, defense: 22, speed: 7, special: 19, ability: 'Wild Charge', rarity: 'Legendary', image: 'assets/lumin.svg' }
+const RARITY_COLORS = {
+  Common: '#6b7280',
+  Rare: '#3b82f6',
+  Epic: '#a855f7',
+  Legendary: '#f59e0b',
+  Mythic: '#ef4444'
+};
+
+const HERO_CARDS_RAW = [
+  { id: 1, name: 'Roaring', emoji: '🦁', type: 'Predator', hp: 82, attack: 26, defense: 18, speed: 7, special: 16, ability: 'Rend', rarity: 'Common' },
+  { id: 2, name: 'Wolven', emoji: '🐺', type: 'Wolf', hp: 78, attack: 24, defense: 16, speed: 9, special: 15, ability: 'Howl', rarity: 'Common' },
+  { id: 3, name: 'Maw', emoji: '🦈', type: 'Ocean', hp: 90, attack: 25, defense: 20, speed: 6, special: 18, ability: 'Charge', rarity: 'Rare' },
+  { id: 4, name: 'Jaguar', emoji: '🐆', type: 'Feline', hp: 80, attack: 23, defense: 17, speed: 8, special: 17, ability: 'Stealth', rarity: 'Rare' },
+  { id: 5, name: 'Claw', emoji: '🐅', type: 'Feline', hp: 77, attack: 27, defense: 15, speed: 10, special: 20, ability: 'Fang', rarity: 'Epic' },
+  { id: 6, name: 'Black Bear', emoji: '🐻', type: 'Bear', hp: 92, attack: 22, defense: 19, speed: 8, special: 16, ability: 'Stare', rarity: 'Epic' },
+  { id: 7, name: 'Beast', emoji: '🦁', type: 'Legendary', hp: 98, attack: 28, defense: 22, speed: 7, special: 19, ability: 'Wild Charge', rarity: 'Legendary' }
 ];
 
 // ---------------------------------------------------------------
@@ -56,6 +64,11 @@ function buildPlaceholderImage(emoji, color) {
   return `data:image/svg+xml;utf8,${encodeURIComponent(svg)}`;
 }
 
+const HERO_CARDS = HERO_CARDS_RAW.map(card => ({
+  ...card,
+  image: buildPlaceholderImage(card.emoji, RARITY_COLORS[card.rarity])
+}));
+
 function generateProceduralCards(count) {
   const cards = [];
   for (let i = 0; i < count; i += 1) {
@@ -86,6 +99,11 @@ function generateProceduralCards(count) {
   }
   return cards;
 }
+
+const RARITY_COLOR_BY_NAME = Object.fromEntries(RARITY_TIERS.map(tier => [tier.name, tier.color]));
+HERO_CARDS.forEach(card => {
+  card.image = buildPlaceholderImage(card.emoji, RARITY_COLOR_BY_NAME[card.rarity] || '#6b7280');
+});
 
 const CARDS = [...HERO_CARDS, ...generateProceduralCards(993)];
 CARDS.forEach(card => { card.set = COLLECTION_NAME; });
