@@ -1,22 +1,28 @@
 const CARDS = [
-  { id: 1, name: 'Ruggente', emoji: '🦁', type: 'Predatore', hp: 82, attack: 26, defense: 18, speed: 7, special: 16, ability: 'Strappo', rarity: 'Comune', image: 'assets/bestia.svg' },
-  { id: 2, name: 'Lupesco', emoji: '🐺', type: 'Lupo', hp: 78, attack: 24, defense: 16, speed: 9, special: 15, ability: 'Ululato', rarity: 'Comune', image: 'assets/vex.svg' },
-  { id: 3, name: 'Morio', emoji: '🦈', type: 'Mare', hp: 90, attack: 25, defense: 20, speed: 6, special: 18, ability: 'Affondo', rarity: 'Rara', image: 'assets/marek.svg' },
-  { id: 4, name: 'Giaguaro', emoji: '🐆', type: 'Felino', hp: 80, attack: 23, defense: 17, speed: 8, special: 17, ability: 'Furtività', rarity: 'Rara', image: 'assets/glacor.svg' },
-  { id: 5, name: 'Zannato', emoji: '🐅', type: 'Felino', hp: 77, attack: 27, defense: 15, speed: 10, special: 20, ability: 'Zanna', rarity: 'Epica', image: 'assets/dravik.svg' },
-  { id: 6, name: 'Orso Nero', emoji: '🐻', type: 'Orso', hp: 92, attack: 22, defense: 19, speed: 8, special: 16, ability: 'Sbarrata', rarity: 'Epica', image: 'assets/pyrox.svg' },
-  { id: 7, name: 'Bestia', emoji: '🦁', type: 'Leggendaria', hp: 98, attack: 28, defense: 22, speed: 7, special: 19, ability: 'Spinta Selvaggia', rarity: 'Leggendaria', image: 'assets/lumin.svg' }
+  { id: 1, name: 'Roaring', emoji: '🦁', type: 'Predator', hp: 82, attack: 26, defense: 18, speed: 7, special: 16, ability: 'Rend', rarity: 'Common', image: 'assets/bestia.svg' },
+  { id: 2, name: 'Wolven', emoji: '🐺', type: 'Wolf', hp: 78, attack: 24, defense: 16, speed: 9, special: 15, ability: 'Howl', rarity: 'Common', image: 'assets/vex.svg' },
+  { id: 3, name: 'Maw', emoji: '🦈', type: 'Ocean', hp: 90, attack: 25, defense: 20, speed: 6, special: 18, ability: 'Charge', rarity: 'Rare', image: 'assets/marek.svg' },
+  { id: 4, name: 'Jaguar', emoji: '🐆', type: 'Feline', hp: 80, attack: 23, defense: 17, speed: 8, special: 17, ability: 'Stealth', rarity: 'Rare', image: 'assets/glacor.svg' },
+  { id: 5, name: 'Claw', emoji: '🐅', type: 'Feline', hp: 77, attack: 27, defense: 15, speed: 10, special: 20, ability: 'Fang', rarity: 'Epic', image: 'assets/dravik.svg' },
+  { id: 6, name: 'Black Bear', emoji: '🐻', type: 'Bear', hp: 92, attack: 22, defense: 19, speed: 8, special: 16, ability: 'Stare', rarity: 'Epic', image: 'assets/pyrox.svg' },
+  { id: 7, name: 'Beast', emoji: '🦁', type: 'Legendary', hp: 98, attack: 28, defense: 22, speed: 7, special: 19, ability: 'Wild Charge', rarity: 'Legendary', image: 'assets/lumin.svg' }
 ];
 
 const STORAGE_KEY = 'beast-pocket-save-v1';
 const TYPE_PRICES = {
-  Fuoco: 8,
-  Acqua: 9,
-  Erba: 7,
-  Elettro: 10,
-  Ghiaccio: 11,
-  Luce: 8,
-  Bestia: 15
+  Fire: 8,
+  Water: 9,
+  Grass: 7,
+  Electric: 10,
+  Ice: 11,
+  Light: 8,
+  Beast: 15,
+  Predator: 12,
+  Wolf: 10,
+  Ocean: 10,
+  Feline: 10,
+  Bear: 11,
+  Legendary: 15
 };
 const DEFAULT_STATE = {
   collection: [1, 2],
@@ -25,7 +31,8 @@ const DEFAULT_STATE = {
   battleLog: [],
   lastPackOpenDate: null,
   coins: 0,
-  battleMode: 'automatic'
+  battleMode: 'automatic',
+  loggedInUser: null
 };
 
 let state = loadState();
@@ -51,7 +58,30 @@ function getTodayKey() {
   return new Date().toISOString().slice(0, 10);
 }
 
+function renderAuth() {
+  const loginForm = document.getElementById('login-form');
+  const welcomePanel = document.getElementById('welcome-panel');
+  const authMessage = document.getElementById('auth-message');
+  const gameContent = document.getElementById('game-content');
+
+  if (!loginForm || !welcomePanel || !authMessage || !gameContent) return;
+
+  if (state.loggedInUser) {
+    loginForm.classList.add('hidden');
+    welcomePanel.classList.remove('hidden');
+    gameContent.classList.remove('hidden');
+    welcomePanel.textContent = `Welcome, ${state.loggedInUser}!`;
+    authMessage.textContent = 'You are now logged in.';
+  } else {
+    loginForm.classList.remove('hidden');
+    welcomePanel.classList.add('hidden');
+    gameContent.classList.add('hidden');
+    authMessage.textContent = 'Enter any username and password to continue.';
+  }
+}
+
 function render() {
+  renderAuth();
   renderDeck();
   renderBook();
   renderBattle();
@@ -63,7 +93,7 @@ function render() {
 function renderCoins() {
   const coinCount = document.getElementById('coin-count');
   if (coinCount) {
-    coinCount.textContent = `Monete: ${state.coins}`;
+    coinCount.textContent = `Coins: ${state.coins}`;
   }
 }
 
@@ -77,10 +107,10 @@ function renderBattleMode() {
 function renderDeck() {
   const deckList = document.getElementById('deck-list');
   const deckCount = document.getElementById('deck-count');
-  deckCount.textContent = `${state.deck.length} carte`;
+  deckCount.textContent = `${state.deck.length} cards`;
 
   if (!state.deck.length) {
-    deckList.innerHTML = '<div class="card-item">Apri una bustina per aggiungere bestie al tuo mazzo. In una bustina ci sono 5 carte.</div>';
+    deckList.innerHTML = '<div class="card-item">Open a pack to add beasts to your deck. Each pack contains 5 cards.</div>';
     return;
   }
 
@@ -99,10 +129,10 @@ function renderDeck() {
         <div class="card-stats">
           <span class="stat-pill">HP ${card.hp}</span>
           <span class="stat-pill">Atk ${card.attack}</span>
-          <span class="stat-pill">Vel ${card.speed}</span>
+          <span class="stat-pill">Spd ${card.speed}</span>
         </div>
         <div class="card-actions">
-          <button class="secondary" data-action="select" data-id="${card.id}">Seleziona</button>
+          <button class="secondary" data-action="select" data-id="${card.id}">Select</button>
         </div>
       </article>
     `;
@@ -112,7 +142,7 @@ function renderDeck() {
 function renderBook() {
   const bookList = document.getElementById('book-list');
   const collectionCount = document.getElementById('collection-count');
-  collectionCount.textContent = `${state.collection.length}/${CARDS.length} raccolte`;
+  collectionCount.textContent = `${state.collection.length}/${CARDS.length} collected`;
 
   bookList.innerHTML = CARDS.map(card => {
     const owned = state.collection.includes(card.id);
@@ -132,10 +162,10 @@ function renderBook() {
         <div class="card-stats">
           <span class="stat-pill">HP ${card.hp}</span>
           <span class="stat-pill">Atk ${card.attack}</span>
-          <span class="stat-pill">Dif ${card.defense}</span>
+          <span class="stat-pill">Def ${card.defense}</span>
         </div>
         <div class="card-actions">
-          ${owned ? '<span class="stat-pill">Posseduta</span>' : `<button data-action="buy" data-id="${card.id}" ${affordable ? '' : 'disabled'}>Compra (${price})</button>`}
+          ${owned ? '<span class="stat-pill">Owned</span>' : `<button data-action="buy" data-id="${card.id}" ${affordable ? '' : 'disabled'}>Buy (${price})</button>`}
         </div>
       </article>
     `;
@@ -155,22 +185,22 @@ function renderBattle() {
     <div class="mini-image-wrap"><img src="${playerCard.image}" alt="${playerCard.name}" /></div>
     <strong>${playerCard.emoji} ${playerCard.name}</strong><br/>
     HP ${playerCard.hp}<br/>
-    Attacco ${playerCard.attack}<br/>
-    Abilità ${playerCard.ability}
-  ` : '<span>Nessuna creatura selezionata</span>';
+    Attack ${playerCard.attack}<br/>
+    Ability ${playerCard.ability}
+  ` : '<span>No creature selected</span>';
 
   cpuPreview.innerHTML = cpuCard ? `
     <div class="mini-image-wrap"><img src="${cpuCard.image}" alt="${cpuCard.name}" /></div>
     <strong>${cpuCard.emoji} ${cpuCard.name}</strong><br/>
     HP ${cpuCard.hp}<br/>
-    Attacco ${cpuCard.attack}<br/>
-    Abilità ${cpuCard.ability}
-  ` : '<span>CPU pronta</span>';
+    Attack ${cpuCard.attack}<br/>
+    Ability ${cpuCard.ability}
+  ` : '<span>CPU ready</span>';
 
-  battleStatus.textContent = state.lastBattleSummary || 'Scegli una bestia';
+  battleStatus.textContent = state.lastBattleSummary || 'Choose a beast';
 
   if (!state.battleLog.length) {
-    battleLog.innerHTML = '<div class="log-entry">Le battaglie compariranno qui.</div>';
+    battleLog.innerHTML = '<div class="log-entry">Battles will appear here.</div>';
     return;
   }
 
@@ -197,27 +227,27 @@ function buyCard(cardId) {
 
   const price = getCardPrice(card);
   if (state.coins < price) {
-    state.lastBattleSummary = `Non hai abbastanza monete per ${card.name}.`;
+    state.lastBattleSummary = `You do not have enough coins for ${card.name}.`;
     render();
     return;
   }
 
   state.coins -= price;
   addCardToDeck(cardId);
-  state.lastBattleSummary = `Hai comprato ${card.name} per ${price} monete`;
+  state.lastBattleSummary = `You bought ${card.name} for ${price} coins`;
   render();
 }
 
 function openPack() {
   if (state.lastPackOpenDate === getTodayKey()) {
-    state.lastBattleSummary = 'Hai già aperto una bustina oggi. Torna domani.';
+    state.lastBattleSummary = 'You already opened a pack today. Come back tomorrow.';
     render();
     return;
   }
 
   const missing = CARDS.filter(card => !state.collection.includes(card.id));
   if (!missing.length) {
-    state.lastBattleSummary = 'Hai già raccolto tutte le bestie.';
+    state.lastBattleSummary = 'You have collected every beast.';
     render();
     return;
   }
@@ -232,8 +262,8 @@ function openPack() {
   const randomCard = packCards[0];
   addCardToDeck(randomCard.id);
   state.lastPackOpenDate = getTodayKey();
-  state.battleLog.unshift(`Hai aperto una bustina e trovato ${randomCard.emoji} ${randomCard.name}!`);
-  state.lastBattleSummary = `Nuova carta: ${randomCard.name}`;
+  state.battleLog.unshift(`You opened a pack and found ${randomCard.emoji} ${randomCard.name}!`);
+  state.lastBattleSummary = `New card: ${randomCard.name}`;
   render();
 }
 
@@ -248,14 +278,14 @@ function chooseCpuCard() {
 function resolveBattle() {
   const playerCard = getCardById(state.selectedCardId) || getCardById(state.deck[0]);
   if (!playerCard) {
-    state.lastBattleSummary = 'Aggiungi una bestia al mazzo prima di combattere.';
+    state.lastBattleSummary = 'Add a beast to your deck before fighting.';
     render();
     return;
   }
 
   const cpuCard = chooseCpuCard();
   if (!cpuCard) {
-    state.lastBattleSummary = 'La CPU non ha creature disponibili.';
+    state.lastBattleSummary = 'The CPU has no creatures available.';
     render();
     return;
   }
@@ -276,25 +306,25 @@ function resolveBattle() {
         ? Math.max(10, playerCard.special + 6 + Math.floor(Math.random() * 4))
         : computeDamage(playerCard, cpuCard);
       cpuHp -= playerDamage;
-      log.push(`${playerCard.name} usa ${playerAction === 'special' ? 'Abilità speciale' : playerCard.ability} e infligge ${playerDamage} danni.`);
+      log.push(`${playerCard.name} uses ${playerAction === 'special' ? 'Special ability' : playerCard.ability} and deals ${playerDamage} damage.`);
       if (cpuHp <= 0) break;
 
       const cpuDamage = computeCpuDamage(cpuCard, playerCard, playerHp);
       if (cpuDamage.type === 'heal') {
         playerHp = Math.min(playerCard.hp, playerHp + cpuDamage.amount);
-        log.push(`${cpuCard.name} si rigenera di ${cpuDamage.amount} HP.`);
+        log.push(`${cpuCard.name} heals for ${cpuDamage.amount} HP.`);
       } else {
         playerHp -= cpuDamage.amount;
-        log.push(`${cpuCard.name} contrattacca e infligge ${cpuDamage.amount} danni.`);
+        log.push(`${cpuCard.name} counterattacks and deals ${cpuDamage.amount} damage.`);
       }
     } else {
       const cpuDamage = computeCpuDamage(cpuCard, playerCard, playerHp);
       if (cpuDamage.type === 'heal') {
         cpuHp = Math.min(cpuCard.hp, cpuHp + cpuDamage.amount);
-        log.push(`${cpuCard.name} si rigenera di ${cpuDamage.amount} HP.`);
+        log.push(`${cpuCard.name} heals for ${cpuDamage.amount} HP.`);
       } else {
         playerHp -= cpuDamage.amount;
-        log.push(`${cpuCard.name} contrattacca e infligge ${cpuDamage.amount} danni.`);
+        log.push(`${cpuCard.name} counterattacks and deals ${cpuDamage.amount} damage.`);
       }
       if (playerHp <= 0) break;
 
@@ -303,16 +333,16 @@ function resolveBattle() {
         ? Math.max(10, playerCard.special + 6 + Math.floor(Math.random() * 4))
         : computeDamage(playerCard, cpuCard);
       cpuHp -= playerDamage;
-      log.push(`${playerCard.name} usa ${playerAction === 'special' ? 'Abilità speciale' : playerCard.ability} e infligge ${playerDamage} danni.`);
+      log.push(`${playerCard.name} uses ${playerAction === 'special' ? 'Special ability' : playerCard.ability} and deals ${playerDamage} damage.`);
     }
   }
 
-  let outcome = 'Pareggio';
+  let outcome = 'Draw';
   if (playerHp > cpuHp) {
-    outcome = `Hai vinto contro ${cpuCard.name}!`;
+    outcome = `You won against ${cpuCard.name}!`;
     state.coins += 5;
   } else if (cpuHp > playerHp) {
-    outcome = `La CPU ha vinto contro ${playerCard.name}.`;
+    outcome = `The CPU won against ${playerCard.name}.`;
   }
 
   state.battleLog = [outcome, ...log, ...state.battleLog].slice(0, 8);
@@ -325,7 +355,7 @@ function askPlayerAction(turn) {
     return 'automatic';
   }
 
-  const choice = window.prompt(`Turno ${turn}: scegli l'azione\n1 = Attacco\n2 = Abilità speciale`, '1');
+  const choice = window.prompt(`Turn ${turn}: choose an action\n1 = Attack\n2 = Special ability`, '1');
   if (choice === '2') {
     return 'special';
   }
@@ -360,7 +390,7 @@ function handleAction(event) {
 
   if (action === 'select') {
     state.selectedCardId = cardId;
-    state.lastBattleSummary = `Hai selezionato ${getCardById(cardId).name}`;
+    state.lastBattleSummary = `You selected ${getCardById(cardId).name}`;
     render();
   }
 
@@ -369,12 +399,34 @@ function handleAction(event) {
   }
 }
 
+function handleLogin(event) {
+  event.preventDefault();
+  const usernameInput = document.getElementById('username');
+  const passwordInput = document.getElementById('password');
+  const authMessage = document.getElementById('auth-message');
+
+  const username = usernameInput.value.trim();
+  const password = passwordInput.value.trim();
+
+  if (!username || !password) {
+    authMessage.textContent = 'Please enter both username and password.';
+    return;
+  }
+
+  state.loggedInUser = username;
+  authMessage.textContent = `Welcome back, ${username}!`;
+  usernameInput.value = '';
+  passwordInput.value = '';
+  render();
+}
+
 document.addEventListener('click', handleAction);
+document.getElementById('login-form').addEventListener('submit', handleLogin);
 document.getElementById('open-pack').addEventListener('click', openPack);
 document.getElementById('battle-btn').addEventListener('click', resolveBattle);
 document.getElementById('battle-mode').addEventListener('change', (event) => {
   state.battleMode = event.target.value;
-  state.lastBattleSummary = event.target.value === 'manual' ? 'Modalità manuale attiva' : 'Modalità automatica attiva';
+  state.lastBattleSummary = event.target.value === 'manual' ? 'Manual mode active' : 'Automatic mode active';
   render();
 });
 

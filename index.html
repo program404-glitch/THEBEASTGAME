@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="it">
+<html lang="en">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
@@ -9,53 +9,71 @@
   </head>
   <body>
     <div class="app-shell">
+      <section class="auth-card" id="auth-card">
+        <form id="login-form" class="login-form">
+          <h2>Login</h2>
+          <label class="auth-field">
+            <span>Username</span>
+            <input id="username" type="text" name="username" placeholder="Enter your username" required />
+          </label>
+          <label class="auth-field">
+            <span>Password</span>
+            <input id="password" type="password" name="password" placeholder="Enter your password" required />
+          </label>
+          <button type="submit">Login</button>
+          <p id="auth-message" class="auth-message">Enter any username and password to continue.</p>
+        </form>
+        <div id="welcome-panel" class="welcome-panel hidden"></div>
+      </section>
+
+      <div id="game-content" class="game-content hidden">
       <header class="hero">
         <div>
           <p class="eyebrow">by Luca Montarello</p>
           <h1>The Beast Game</h1>
-          <p class="subtitle">Colleziona bestie feroci, costruisci il tuo branco e sfida la CPU.</p>
+          <p class="subtitle">Collect fierce beasts, build your pack, and challenge the CPU.</p>
         </div>
         <div class="hero-actions">
-          <span id="coin-count" class="mode-status">Monete: 0</span>
+          <span id="coin-count" class="mode-status">Coins: 0</span>
           <label class="mode-status" for="battle-mode">
-            Modalità:
+            Mode:
             <select id="battle-mode">
-              <option value="automatic">Automatica</option>
-              <option value="manual">Manuale</option>
+              <option value="automatic">Automatic</option>
+              <option value="manual">Manual</option>
             </select>
           </label>
-          <button id="open-pack">Apri bustina</button>
-          <button id="battle-btn">Battaglia CPU</button>
+          <button id="open-pack">Open pack</button>
+          <button id="battle-btn">Battle CPU</button>
         </div>
       </header>
 
-      <p id="mode-status" class="mode-status">Una bustina al giorno — in una bustina ci sono 5 carte.</p>
+      <p id="mode-status" class="mode-status">One pack per day — each pack contains 5 cards.</p>
 
       <main class="layout">
         <section class="panel">
           <div class="panel-title-row">
-            <h2>Il tuo mazzo</h2>
-            <span id="deck-count">0 carte</span>
+            <h2>Your deck</h2>
+            <span id="deck-count">0 cards</span>
           </div>
           <div id="deck-list" class="card-list"></div>
         </section>
 
         <section class="panel">
           <div class="panel-title-row">
-            <h2>Megafolder</h2>
-            <span id="collection-count">0/6 raccolte</span>
+            <h2>Mega folder</h2>
+            <span id="collection-count">0/6 collected</span>
           </div>
           <div id="book-list" class="card-list book-list"></div>
         </section>
 
         <section class="panel battle-panel">
           <div class="panel-title-row">
-            <h2>Battaglia</h2>
-            <span id="battle-status">Scegli una creatura</span>
+            <h2>Battle</h2>
+            <span id="battle-status">Choose a creature</span>
           </div>
           <div class="battle-area">
             <div class="fighter-card player-card">
-              <h3>Tu</h3>
+              <h3>You</h3>
               <div id="player-preview" class="fighter-preview"></div>
             </div>
             <div class="vs">VS</div>
@@ -75,6 +93,7 @@
         <span class="footer-separator">•</span>
         <a href="https://www.tiktok.com/@thebeastgameproject?lang=it-IT" target="_blank" rel="noopener noreferrer">TikTok</a>
       </footer>
+      </div>
     </div>
   </body>
 </html>
