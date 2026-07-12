@@ -365,25 +365,36 @@ function openPack() {
     return;
   }
 
-  const missing = CARDS.filter(card => !state.collection.includes(card.id));
-  if (!missing.length) {
-    state.lastBattleSummary = 'You have collected every beast.';
-    persist();
-    return;
+  const DUPLICATE_REFUND = 3;
+  const newCards = [];
+  const duplicateCards = [];
+
+  for (let i = 0; i < 5; i += 1) {
+    const card = CARDS[Math.floor(Math.random() * CARDS.length)];
+    if (state.collection.includes(card.id) || newCards.some(c => c.id === card.id)) {
+      duplicateCards.push(card);
+      state.coins += DUPLICATE_REFUND;
+    } else {
+      newCards.push(card);
+      addCardToDeck(card.id);
+    }
   }
 
-  const packCards = [];
-  const pool = [...missing];
-  while (packCards.length < 5 && pool.length) {
-    const index = Math.floor(Math.random() * pool.length);
-    packCards.push(pool.splice(index, 1)[0]);
-  }
-
-  const randomCard = packCards[0];
-  addCardToDeck(randomCard.id);
   state.lastPackOpenDate = getTodayKey();
-  state.battleLog.unshift(`You opened a pack and found ${randomCard.emoji} ${randomCard.name}!`);
-  state.lastBattleSummary = `New card: ${randomCard.name}`;
+
+  const summaryParts = [];
+  if (newCards.length) {
+    const names = newCards.map(card => `${card.emoji} ${card.name}`).join(', ');
+    state.battleLog.unshift(`You opened a pack (5 cards) and found: ${names}`);
+    summaryParts.push(`New: ${newCards.map(card => card.name).join(', ')}`);
+  }
+  if (duplicateCards.length) {
+    const refund = duplicateCards.length * DUPLICATE_REFUND;
+    state.battleLog.unshift(`${duplicateCards.length} duplicate card(s) converted to ${refund} coins.`);
+    summaryParts.push(`+${refund} coins from duplicates`);
+  }
+
+  state.lastBattleSummary = summaryParts.join(' • ') || 'Pack opened.';
   persist();
 }
 
