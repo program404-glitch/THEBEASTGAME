@@ -1,4 +1,4 @@
-const CARDS = [
+const HERO_CARDS = [
   { id: 1, name: 'Roaring', emoji: '🦁', type: 'Predator', hp: 82, attack: 26, defense: 18, speed: 7, special: 16, ability: 'Rend', rarity: 'Common', image: 'assets/bestia.svg' },
   { id: 2, name: 'Wolven', emoji: '🐺', type: 'Wolf', hp: 78, attack: 24, defense: 16, speed: 9, special: 15, ability: 'Howl', rarity: 'Common', image: 'assets/vex.svg' },
   { id: 3, name: 'Maw', emoji: '🦈', type: 'Ocean', hp: 90, attack: 25, defense: 20, speed: 6, special: 18, ability: 'Charge', rarity: 'Rare', image: 'assets/marek.svg' },
@@ -8,22 +8,93 @@ const CARDS = [
   { id: 7, name: 'Beast', emoji: '🦁', type: 'Legendary', hp: 98, attack: 28, defense: 22, speed: 7, special: 19, ability: 'Wild Charge', rarity: 'Legendary', image: 'assets/lumin.svg' }
 ];
 
+// ---------------------------------------------------------------
+// Procedural beast generation (~993 extra cards, ids 8..1000)
+// ---------------------------------------------------------------
+// Deterministic: every card's stats depend only on its id, via a seeded
+// pseudo-random generator. This matters because CARDS is rebuilt fresh on
+// every page load, on every device — if generation used plain Math.random()
+// each device/session would see different stats for "card #482", breaking
+// anyone's collection. Seeding by id keeps every card identical everywhere.
+function mulberry32(seed) {
+  let a = seed;
+  return function random() {
+    a |= 0;
+    a = (a + 0x6D2B79F5) | 0;
+    let t = Math.imul(a ^ (a >>> 15), 1 | a);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+const NAME_PREFIXES = ['Shadow', 'Storm', 'Iron', 'Blaze', 'Frost', 'Venom', 'Solar', 'Lunar', 'Thunder', 'Crimson', 'Golden', 'Silver', 'Obsidian', 'Emerald', 'Sapphire', 'Ember', 'Glacial', 'Toxic', 'Radiant', 'Void', 'Astral', 'Feral', 'Savage', 'Mystic', 'Ancient', 'Primal', 'Spectral', 'Molten', 'Arctic', 'Verdant', 'Rusted', 'Gilded', 'Twilight', 'Dawn'];
+const NAME_ROOTS = ['Fang', 'Claw', 'Wing', 'Horn', 'Scale', 'Mane', 'Talon', 'Tusk', 'Spike', 'Howler', 'Stalker', 'Reaper', 'Guardian', 'Hunter', 'Serpent', 'Drake', 'Panther', 'Falcon', 'Raptor', 'Titan', 'Wyrm', 'Phantom', 'Warden', 'Prowler', 'Ravager', 'Sentinel', 'Marauder', 'Nomad', 'Colossus', 'Wraith'];
+const BEAST_TYPES = ['Fire', 'Water', 'Grass', 'Electric', 'Ice', 'Light', 'Shadow', 'Poison', 'Rock', 'Wind', 'Metal', 'Earth', 'Psychic', 'Dragon', 'Spirit'];
+const BEAST_ABILITIES = ['Rend', 'Howl', 'Charge', 'Stealth', 'Fang', 'Stare', 'Wild Charge', 'Ember Burst', 'Tidal Wave', 'Root Snare', 'Static Shock', 'Frost Bite', 'Radiant Beam', 'Shadow Step', 'Venom Strike', 'Solar Flare', 'Lunar Veil', 'Thunder Clap', 'Crimson Slash', 'Golden Aura', 'Iron Wall', 'Obsidian Spike', 'Toxic Cloud', 'Void Pulse', 'Astral Drift', 'Feral Roar', 'Savage Bite', 'Mystic Ward', 'Primal Rage', 'Spectral Chain'];
+const BEAST_EMOJIS = ['🦁', '🐺', '🦈', '🐆', '🐅', '🐻', '🐉', '🦂', '🐍', '🦅', '🦉', '🐢', '🐊', '🦇', '🦏', '🐘', '🦓', '🦒', '🦌', '🦬', '🐗', '🦔', '🦡', '🦫', '🦥', '🦦', '🦧', '🦍', '🐎', '🦄', '🐐', '🦙', '🐫', '🦘', '🐨', '🐼', '🐧', '🦩', '🦚', '🦜', '🐸', '🦎', '🐳', '🐬', '🦭', '🐡', '🦐', '🦑', '🐙', '🦋', '🐝', '🦗'];
+
+const RARITY_TIERS = [
+  { name: 'Common', threshold: 40, color: '#6b7280', hp: [60, 75], attack: [15, 20], defense: [10, 15], speed: [5, 8], special: [10, 14] },
+  { name: 'Rare', threshold: 70, color: '#3b82f6', hp: [75, 88], attack: [20, 25], defense: [14, 19], speed: [7, 10], special: [14, 18] },
+  { name: 'Epic', threshold: 88, color: '#a855f7', hp: [85, 98], attack: [24, 29], defense: [17, 22], speed: [8, 11], special: [17, 21] },
+  { name: 'Legendary', threshold: 97, color: '#f59e0b', hp: [95, 108], attack: [27, 32], defense: [20, 25], speed: [9, 12], special: [19, 24] },
+  { name: 'Mythic', threshold: 100, color: '#ef4444', hp: [105, 120], attack: [30, 36], defense: [22, 28], speed: [10, 14], special: [22, 28] }
+];
+
+function pickInRange(rng, [min, max]) {
+  return min + Math.floor(rng() * (max - min + 1));
+}
+
+function rarityForRoll(roll) {
+  return RARITY_TIERS.find(tier => roll < tier.threshold) || RARITY_TIERS[RARITY_TIERS.length - 1];
+}
+
+function buildPlaceholderImage(emoji, color) {
+  const svg = `<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 120 120'><rect width='120' height='120' rx='18' fill='${color}'/><text x='50%' y='58%' font-size='60' text-anchor='middle' dominant-baseline='middle'>${emoji}</text></svg>`;
+  return `data:image/svg+xml;utf8,${encodeURIComponent(svg)}`;
+}
+
+function generateProceduralCards(count) {
+  const cards = [];
+  for (let i = 0; i < count; i += 1) {
+    const id = HERO_CARDS.length + 1 + i;
+    const rng = mulberry32(id * 2654435761);
+
+    const prefix = NAME_PREFIXES[i % NAME_PREFIXES.length];
+    const root = NAME_ROOTS[Math.floor(i / NAME_PREFIXES.length) % NAME_ROOTS.length];
+    const type = BEAST_TYPES[i % BEAST_TYPES.length];
+    const ability = BEAST_ABILITIES[i % BEAST_ABILITIES.length];
+    const emoji = BEAST_EMOJIS[i % BEAST_EMOJIS.length];
+    const tier = rarityForRoll(i % 100);
+
+    cards.push({
+      id,
+      name: `${prefix} ${root}`,
+      emoji,
+      type,
+      hp: pickInRange(rng, tier.hp),
+      attack: pickInRange(rng, tier.attack),
+      defense: pickInRange(rng, tier.defense),
+      speed: pickInRange(rng, tier.speed),
+      special: pickInRange(rng, tier.special),
+      ability,
+      rarity: tier.name,
+      image: buildPlaceholderImage(emoji, tier.color)
+    });
+  }
+  return cards;
+}
+
+const CARDS = [...HERO_CARDS, ...generateProceduralCards(993)];
+
 const AVATAR_OPTIONS = ['🦁', '🐺', '🦈', '🐆', '🐅', '🐻', '🐉', '🦂'];
 
-const TYPE_PRICES = {
-  Fire: 8,
-  Water: 9,
-  Grass: 7,
-  Electric: 10,
-  Ice: 11,
-  Light: 8,
-  Beast: 15,
-  Predator: 12,
-  Wolf: 10,
-  Ocean: 10,
-  Feline: 10,
-  Bear: 11,
-  Legendary: 15
+const RARITY_PRICES = {
+  Common: 6,
+  Rare: 10,
+  Epic: 16,
+  Legendary: 26,
+  Mythic: 45
 };
 
 const DEFAULT_STATE = {
@@ -328,7 +399,7 @@ function renderBattle() {
 }
 
 function getCardPrice(card) {
-  return TYPE_PRICES[card.type] || 10;
+  return RARITY_PRICES[card.rarity] || 10;
 }
 
 function addCardToDeck(cardId) {
