@@ -1,11 +1,11 @@
 const CARDS = [
-  { id: 1, name: 'Pyrox', emoji: '🔥', type: 'Fuoco', hp: 82, attack: 24, defense: 16, speed: 7, special: 18, ability: 'Braciata', rarity: 'Comune', image: 'assets/pyrox.svg' },
-  { id: 2, name: 'Lumin', emoji: '✨', type: 'Luce', hp: 74, attack: 20, defense: 15, speed: 8, special: 16, ability: 'Faro', rarity: 'Comune', image: 'assets/lumin.svg' },
-  { id: 3, name: 'Marek', emoji: '💧', type: 'Acqua', hp: 88, attack: 22, defense: 18, speed: 6, special: 17, ability: 'Marea', rarity: 'Rara', image: 'assets/marek.svg' },
-  { id: 4, name: 'Vex', emoji: '🌿', type: 'Erba', hp: 79, attack: 19, defense: 17, speed: 5, special: 15, ability: 'Rinascita', rarity: 'Rara', image: 'assets/vex.svg' },
-  { id: 5, name: 'Dravik', emoji: '⚡', type: 'Elettro', hp: 76, attack: 23, defense: 14, speed: 9, special: 19, ability: 'Scarica', rarity: 'Epica', image: 'assets/dravik.svg' },
-  { id: 6, name: 'Glacor', emoji: '❄️', type: 'Ghiaccio', hp: 84, attack: 21, defense: 16, speed: 7, special: 16, ability: 'Blocco', rarity: 'Epica', image: 'assets/glacor.svg' },
-  { id: 7, name: 'Bestia', emoji: '🦁', type: 'Bestia', hp: 96, attack: 26, defense: 20, speed: 6, special: 17, ability: 'Spinta Selvaggia', rarity: 'Leggendaria', image: 'assets/bestia.svg' }
+  { id: 1, name: 'Ruggente', emoji: '🦁', type: 'Predatore', hp: 82, attack: 26, defense: 18, speed: 7, special: 16, ability: 'Strappo', rarity: 'Comune', image: 'assets/bestia.svg' },
+  { id: 2, name: 'Lupesco', emoji: '🐺', type: 'Lupo', hp: 78, attack: 24, defense: 16, speed: 9, special: 15, ability: 'Ululato', rarity: 'Comune', image: 'assets/vex.svg' },
+  { id: 3, name: 'Morio', emoji: '🦈', type: 'Mare', hp: 90, attack: 25, defense: 20, speed: 6, special: 18, ability: 'Affondo', rarity: 'Rara', image: 'assets/marek.svg' },
+  { id: 4, name: 'Giaguaro', emoji: '🐆', type: 'Felino', hp: 80, attack: 23, defense: 17, speed: 8, special: 17, ability: 'Furtività', rarity: 'Rara', image: 'assets/glacor.svg' },
+  { id: 5, name: 'Zannato', emoji: '🐅', type: 'Felino', hp: 77, attack: 27, defense: 15, speed: 10, special: 20, ability: 'Zanna', rarity: 'Epica', image: 'assets/dravik.svg' },
+  { id: 6, name: 'Orso Nero', emoji: '🐻', type: 'Orso', hp: 92, attack: 22, defense: 19, speed: 8, special: 16, ability: 'Sbarrata', rarity: 'Epica', image: 'assets/pyrox.svg' },
+  { id: 7, name: 'Bestia', emoji: '🦁', type: 'Leggendaria', hp: 98, attack: 28, defense: 22, speed: 7, special: 19, ability: 'Spinta Selvaggia', rarity: 'Leggendaria', image: 'assets/lumin.svg' }
 ];
 
 const STORAGE_KEY = 'beast-pocket-save-v1';
@@ -80,7 +80,7 @@ function renderDeck() {
   deckCount.textContent = `${state.deck.length} carte`;
 
   if (!state.deck.length) {
-    deckList.innerHTML = '<div class="card-item">Apri una bustina per aggiungere creature al tuo mazzo.</div>';
+    deckList.innerHTML = '<div class="card-item">Apri una bustina per aggiungere bestie al tuo mazzo.</div>';
     return;
   }
 
@@ -167,7 +167,7 @@ function renderBattle() {
     Abilità ${cpuCard.ability}
   ` : '<span>CPU pronta</span>';
 
-  battleStatus.textContent = state.lastBattleSummary || 'Scegli una creatura';
+  battleStatus.textContent = state.lastBattleSummary || 'Scegli una bestia';
 
   if (!state.battleLog.length) {
     battleLog.innerHTML = '<div class="log-entry">Le battaglie compariranno qui.</div>';
@@ -217,7 +217,7 @@ function openPack() {
 
   const missing = CARDS.filter(card => !state.collection.includes(card.id));
   if (!missing.length) {
-    state.lastBattleSummary = 'Hai già raccolto tutte le creature.';
+    state.lastBattleSummary = 'Hai già raccolto tutte le bestie.';
     render();
     return;
   }
@@ -248,7 +248,7 @@ function chooseCpuCard() {
 function resolveBattle() {
   const playerCard = getCardById(state.selectedCardId) || getCardById(state.deck[0]);
   if (!playerCard) {
-    state.lastBattleSummary = 'Aggiungi una creatura al mazzo prima di combattere.';
+    state.lastBattleSummary = 'Aggiungi una bestia al mazzo prima di combattere.';
     render();
     return;
   }
