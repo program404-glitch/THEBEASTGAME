@@ -80,7 +80,7 @@ function renderDeck() {
   deckCount.textContent = `${state.deck.length} carte`;
 
   if (!state.deck.length) {
-    deckList.innerHTML = '<div class="card-item">Apri una bustina per aggiungere bestie al tuo mazzo.</div>';
+    deckList.innerHTML = '<div class="card-item">Apri una bustina per aggiungere bestie al tuo mazzo. In una bustina ci sono 5 carte.</div>';
     return;
   }
 
@@ -224,7 +224,7 @@ function openPack() {
 
   const packCards = [];
   const pool = [...missing];
-  while (packCards.length < 11 && pool.length) {
+  while (packCards.length < 5 && pool.length) {
     const index = Math.floor(Math.random() * pool.length);
     packCards.push(pool.splice(index, 1)[0]);
   }
