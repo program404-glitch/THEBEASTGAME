@@ -1,3 +1,5 @@
+const COLLECTION_NAME = 'The First Collection';
+
 const HERO_CARDS = [
   { id: 1, name: 'Roaring', emoji: '🦁', type: 'Predator', hp: 82, attack: 26, defense: 18, speed: 7, special: 16, ability: 'Rend', rarity: 'Common', image: 'assets/bestia.svg' },
   { id: 2, name: 'Wolven', emoji: '🐺', type: 'Wolf', hp: 78, attack: 24, defense: 16, speed: 9, special: 15, ability: 'Howl', rarity: 'Common', image: 'assets/vex.svg' },
@@ -86,6 +88,7 @@ function generateProceduralCards(count) {
 }
 
 const CARDS = [...HERO_CARDS, ...generateProceduralCards(993)];
+CARDS.forEach(card => { card.set = COLLECTION_NAME; });
 
 const AVATAR_OPTIONS = ['🦁', '🐺', '🦈', '🐆', '🐅', '🐻', '🐉', '🦂'];
 
@@ -331,8 +334,10 @@ function renderDeck() {
 function renderBook() {
   const bookList = document.getElementById('book-list');
   const collectionCount = document.getElementById('collection-count');
+  const collectionName = document.getElementById('collection-name');
   if (!bookList || !collectionCount) return;
   collectionCount.textContent = `${state.collection.length}/${CARDS.length} collected`;
+  if (collectionName) collectionName.textContent = COLLECTION_NAME;
 
   bookList.innerHTML = CARDS.map(card => {
     const owned = state.collection.includes(card.id);
