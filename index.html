@@ -65,20 +65,19 @@
       <p id="mode-status" class="mode-status">One pack per day — each pack contains 5 cards.</p>
 
       <main class="layout">
-        <section class="panel">
-          <div class="panel-title-row">
+        <section class="panel collapsible-panel collapsed" id="deck-panel">
+          <div class="panel-title-row panel-toggle" data-toggle="deck-panel">
             <h2>Your deck</h2>
             <span id="deck-count">0 cards</span>
           </div>
           <div id="deck-list" class="card-list"></div>
         </section>
 
-        <section class="panel">
-          <div class="panel-title-row">
-            <h2>Mega folder</h2>
+        <section class="panel collapsible-panel collapsed" id="collection-panel">
+          <div class="panel-title-row panel-toggle" data-toggle="collection-panel">
+            <h2 id="collection-title">THE FIRST COLLECTION</h2>
             <span id="collection-count">0/1000 collected</span>
           </div>
-          <p id="collection-name" class="collection-name">The First Collection</p>
           <div id="book-list" class="card-list book-list"></div>
         </section>
 

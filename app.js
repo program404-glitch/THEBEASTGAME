@@ -352,10 +352,10 @@ function renderDeck() {
 function renderBook() {
   const bookList = document.getElementById('book-list');
   const collectionCount = document.getElementById('collection-count');
-  const collectionName = document.getElementById('collection-name');
+  const collectionTitle = document.getElementById('collection-title');
   if (!bookList || !collectionCount) return;
   collectionCount.textContent = `${state.collection.length}/${CARDS.length} collected`;
-  if (collectionName) collectionName.textContent = COLLECTION_NAME;
+  if (collectionTitle) collectionTitle.textContent = COLLECTION_NAME.toUpperCase();
 
   bookList.innerHTML = CARDS.map(card => {
     const owned = state.collection.includes(card.id);
@@ -855,6 +855,13 @@ async function handleLogin(event) {
 }
 
 document.addEventListener('click', (event) => {
+  const panelToggle = event.target.closest('.panel-toggle');
+  if (panelToggle) {
+    const panel = document.getElementById(panelToggle.dataset.toggle);
+    if (panel) panel.classList.toggle('collapsed');
+    return;
+  }
+
   if (event.target.closest('#account-menu-toggle')) {
     openAccountDrawer();
     return;
