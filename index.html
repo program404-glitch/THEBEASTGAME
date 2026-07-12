@@ -42,6 +42,15 @@
               <option value="manual">Manual</option>
             </select>
           </label>
+          <div class="account-menu-wrapper">
+            <button id="account-menu-toggle" class="secondary" type="button">Account</button>
+            <div id="account-menu" class="account-menu hidden">
+              <button type="button" data-action="change-username">Change username</button>
+              <button type="button" data-action="change-password">Change password</button>
+              <button type="button" data-action="logout">Log out</button>
+              <button type="button" class="danger" data-action="delete-account">Delete account</button>
+            </div>
+          </div>
           <button id="open-pack">Open pack</button>
           <button id="battle-btn">Battle CPU</button>
         </div>

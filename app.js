@@ -9,6 +9,7 @@ const CARDS = [
 ];
 
 const STORAGE_KEY = 'beast-pocket-save-v1';
+const SHARED_ACCOUNT_URL = 'https://jsonblob.com/api/jsonBlob/019f5646-8e12-7ac1-8e76-2801c7553130';
 const TYPE_PRICES = {
   Fire: 8,
   Water: 9,
@@ -50,6 +51,64 @@ function saveState() {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
 }
 
+async function hashPassword(password) {
+  const encoder = new TextEncoder();
+  const data = encoder.encode(password);
+  const hashBuffer = await crypto.subtle.digest('SHA-256', data);
+  return Array.from(new Uint8Array(hashBuffer)).map(byte => byte.toString(16).padStart(2, '0')).join('');
+}
+
+async function loadRemoteUsers() {
+  try {
+    const response = await fetch(SHARED_ACCOUNT_URL, { headers: { Accept: 'application/json' } });
+    if (!response.ok) throw new Error('Unable to load shared users');
+    const data = await response.json();
+    return data && typeof data === 'object' && data.users ? data.users : {};
+  } catch (error) {
+    console.warn('Shared account sync unavailable:', error);
+    return {};
+  }
+}
+
+async function saveRemoteUsers(users) {
+  try {
+    const response = await fetch(SHARED_ACCOUNT_URL, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ users })
+    });
+    if (!response.ok) throw new Error('Unable to save shared users');
+    return true;
+  } catch (error) {
+    console.warn('Could not save shared account data:', error);
+    return false;
+  }
+}
+
+function getSerializableStateForAccount() {
+  return {
+    collection: Array.isArray(state.collection) ? [...state.collection] : [...DEFAULT_STATE.collection],
+    deck: Array.isArray(state.deck) ? [...state.deck] : [...DEFAULT_STATE.deck],
+    selectedCardId: state.selectedCardId ?? DEFAULT_STATE.selectedCardId,
+    battleLog: Array.isArray(state.battleLog) ? [...state.battleLog] : [...DEFAULT_STATE.battleLog],
+    lastPackOpenDate: state.lastPackOpenDate ?? DEFAULT_STATE.lastPackOpenDate,
+    coins: state.coins ?? DEFAULT_STATE.coins,
+    battleMode: state.battleMode ?? DEFAULT_STATE.battleMode,
+    lastBattleSummary: state.lastBattleSummary ?? '',
+    lastCpuCardId: state.lastCpuCardId
+  };
+}
+
+async function syncCurrentAccountState() {
+  if (!state.loggedInUser || !state.passwordHash) return;
+  const users = await loadRemoteUsers();
+  users[state.loggedInUser] = {
+    passwordHash: state.passwordHash,
+    state: getSerializableStateForAccount()
+  };
+  await saveRemoteUsers(users);
+}
+
 function getCardById(cardId) {
   return CARDS.find(card => card.id === cardId);
 }
@@ -88,6 +147,9 @@ function render() {
   renderCoins();
   renderBattleMode();
   saveState();
+  if (state.loggedInUser && state.passwordHash) {
+    syncCurrentAccountState();
+  }
 }
 
 function renderCoins() {
@@ -399,7 +461,83 @@ function handleAction(event) {
   }
 }
 
-function handleLogin(event) {
+function toggleAccountMenu() {
+  const accountMenu = document.getElementById('account-menu');
+  if (accountMenu) {
+    accountMenu.classList.toggle('hidden');
+  }
+}
+
+async function promptAndUpdateAccount(action) {
+  const authMessage = document.getElementById('auth-message');
+  if (!authMessage) return;
+
+  if (action === 'change-username') {
+    const newUsername = window.prompt('Enter your new username');
+    if (!newUsername || !newUsername.trim()) return;
+    const username = newUsername.trim();
+    const users = await loadRemoteUsers();
+    const currentUser = state.loggedInUser;
+    if (!currentUser) return;
+    const currentEntry = users[currentUser];
+    if (!currentEntry) return;
+    delete users[currentUser];
+    users[username] = {
+      passwordHash: currentEntry.passwordHash,
+      state: currentEntry.state
+    };
+    await saveRemoteUsers(users);
+    state.loggedInUser = username;
+    state.passwordHash = currentEntry.passwordHash;
+    authMessage.textContent = `Username updated to ${username}.`;
+    render();
+    return;
+  }
+
+  if (action === 'change-password') {
+    const newPassword = window.prompt('Enter your new password');
+    if (!newPassword || !newPassword.trim()) return;
+    const passwordHash = await hashPassword(newPassword.trim());
+    const users = await loadRemoteUsers();
+    const currentUser = state.loggedInUser;
+    if (!currentUser) return;
+    const currentEntry = users[currentUser];
+    if (!currentEntry) return;
+    users[currentUser] = {
+      passwordHash,
+      state: currentEntry.state
+    };
+    await saveRemoteUsers(users);
+    state.passwordHash = passwordHash;
+    authMessage.textContent = 'Password updated.';
+    render();
+    return;
+  }
+
+  if (action === 'logout') {
+    state.loggedInUser = null;
+    state.passwordHash = null;
+    authMessage.textContent = 'You have been logged out.';
+    render();
+    return;
+  }
+
+  if (action === 'delete-account') {
+    const confirmed = window.confirm('Delete your account? This action cannot be undone.');
+    if (!confirmed) return;
+    const users = await loadRemoteUsers();
+    const currentUser = state.loggedInUser;
+    if (!currentUser) return;
+    delete users[currentUser];
+    await saveRemoteUsers(users);
+    localStorage.removeItem(STORAGE_KEY);
+    state = { ...DEFAULT_STATE };
+    authMessage.textContent = 'Account deleted.';
+    render();
+  }
+}
+
+async function handleLogin(event) {
   event.preventDefault();
   const usernameInput = document.getElementById('username');
   const passwordInput = document.getElementById('password');
@@ -413,14 +551,60 @@ function handleLogin(event) {
     return;
   }
 
-  state.loggedInUser = username;
-  authMessage.textContent = `Welcome back, ${username}!`;
+  const passwordHash = await hashPassword(password);
+  const users = await loadRemoteUsers();
+  const existingAccount = users[username];
+
+  if (existingAccount) {
+    if (existingAccount.passwordHash !== passwordHash) {
+      authMessage.textContent = 'Wrong password. Please try again.';
+      return;
+    }
+
+    state = {
+      ...DEFAULT_STATE,
+      ...(existingAccount.state || {}),
+      loggedInUser: username,
+      passwordHash
+    };
+    authMessage.textContent = `Welcome back, ${username}!`;
+  } else {
+    state = {
+      ...DEFAULT_STATE,
+      loggedInUser: username,
+      passwordHash
+    };
+    users[username] = {
+      passwordHash,
+      state: getSerializableStateForAccount()
+    };
+    await saveRemoteUsers(users);
+    authMessage.textContent = `Account created for ${username}.`;
+  }
+
   usernameInput.value = '';
   passwordInput.value = '';
   render();
 }
 
-document.addEventListener('click', handleAction);
+document.addEventListener('click', (event) => {
+  const accountToggle = event.target.closest('#account-menu-toggle');
+  if (accountToggle) {
+    toggleAccountMenu();
+    return;
+  }
+
+  const accountButton = event.target.closest('button[data-action]');
+  if (accountButton) {
+    const action = accountButton.dataset.action;
+    if (action && action.startsWith('change-') || action === 'logout' || action === 'delete-account') {
+      promptAndUpdateAccount(action);
+      return;
+    }
+  }
+
+  handleAction(event);
+});
 document.getElementById('login-form').addEventListener('submit', handleLogin);
 document.getElementById('open-pack').addEventListener('click', openPack);
 document.getElementById('battle-btn').addEventListener('click', resolveBattle);
