@@ -1,6 +1,26 @@
 /* ============================================================
-   Account avatar button (in the header, opens the drawer)
+   Login / Sign up toggle
    ============================================================ */
+.auth-toggle {
+  text-align: center;
+  font-size: 14px;
+  margin-top: 8px;
+  opacity: 0.85;
+}
+
+.link-button {
+  background: none;
+  border: none;
+  color: #7c9cff;
+  font-size: 14px;
+  cursor: pointer;
+  padding: 0 0 0 4px;
+  text-decoration: underline;
+}
+
+.link-button:hover {
+  opacity: 0.85;
+}
 .account-avatar-btn {
   display: inline-flex;
   align-items: center;

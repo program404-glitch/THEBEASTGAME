@@ -46,6 +46,7 @@ const DEFAULT_STATE = {
 let state = { ...DEFAULT_STATE };
 let currentUser = null; // Firebase Auth user object, or null when logged out
 let suppressNextAuthMessage = false;
+let authMode = 'login'; // 'login' | 'signup'
 
 const auth = firebase.auth();
 const db = firebase.firestore();
@@ -673,6 +674,28 @@ async function promptAndUpdateAccount(action) {
 // ---------------------------------------------------------------
 // Login / sign-up
 // ---------------------------------------------------------------
+function setAuthMode(mode) {
+  authMode = mode;
+  const title = document.getElementById('auth-title');
+  const submitBtn = document.getElementById('auth-submit');
+  const toggleQuestion = document.getElementById('auth-toggle-question');
+  const toggleBtn = document.getElementById('auth-toggle-btn');
+
+  if (mode === 'signup') {
+    title.textContent = 'Sign up';
+    submitBtn.textContent = 'Create account';
+    toggleQuestion.textContent = 'Already have an account?';
+    toggleBtn.textContent = 'Log in';
+    setAuthMessage('Choose a username and password to create your account.');
+  } else {
+    title.textContent = 'Login';
+    submitBtn.textContent = 'Login';
+    toggleQuestion.textContent = "Don't have an account?";
+    toggleBtn.textContent = 'Sign up';
+    setAuthMessage('Enter your username and password to continue.');
+  }
+}
+
 async function handleLogin(event) {
   event.preventDefault();
   const usernameInput = document.getElementById('username');
@@ -687,45 +710,39 @@ async function handleLogin(event) {
   }
 
   const email = usernameToEmail(username);
-  setAuthMessage('Signing in…');
 
-  try {
-    await auth.signInWithEmailAndPassword(email, password);
-    // onAuthStateChanged will load the Firestore doc and re-render.
-  } catch (error) {
-    // Newer Firebase projects have "email enumeration protection" enabled,
-    // which replaces the old specific auth/user-not-found /
-    // auth/wrong-password codes with a single generic
-    // auth/invalid-credential (INVALID_LOGIN_CREDENTIALS) error — for
-    // both "no such account" AND "wrong password". Since this game
-    // auto-creates an account on first login, we can no longer tell which
-    // case we're in just from the sign-in error. So: try to create the
-    // account. If that fails because the username is already taken, we
-    // then know it really was a wrong password.
-    const ambiguousCodes = ['auth/user-not-found', 'auth/invalid-credential', 'auth/invalid-login-credentials'];
-
-    if (ambiguousCodes.includes(error.code)) {
-      try {
-        suppressNextAuthMessage = true;
-        const credential = await auth.createUserWithEmailAndPassword(email, password);
-        const newState = { ...DEFAULT_STATE, username };
-        await db.collection('users').doc(credential.user.uid).set(newState);
-        state = newState;
-        setAuthMessage(`Account created for ${username}.`);
-        render();
-      } catch (signUpError) {
-        if (signUpError.code === 'auth/email-already-in-use') {
-          // The account does exist after all — the original error meant
-          // the password was wrong.
-          setAuthMessage('Wrong password. Please try again.');
-        } else {
-          setAuthMessage(describeAuthError(signUpError));
-        }
+  if (authMode === 'signup') {
+    setAuthMessage('Creating your account…');
+    try {
+      suppressNextAuthMessage = true;
+      const credential = await auth.createUserWithEmailAndPassword(email, password);
+      const newState = { ...DEFAULT_STATE, username };
+      await db.collection('users').doc(credential.user.uid).set(newState);
+      state = newState;
+      setAuthMessage(`Account created for ${username}.`);
+      render();
+    } catch (error) {
+      if (error.code === 'auth/email-already-in-use') {
+        setAuthMessage('That username is already taken. Try logging in instead.');
+      } else {
+        setAuthMessage(describeAuthError(error));
       }
-    } else {
-      setAuthMessage(describeAuthError(error));
+      return;
     }
-    return;
+  } else {
+    setAuthMessage('Signing in…');
+    try {
+      await auth.signInWithEmailAndPassword(email, password);
+      // onAuthStateChanged will load the Firestore doc and re-render.
+    } catch (error) {
+      const noAccountCodes = ['auth/user-not-found', 'auth/invalid-credential', 'auth/invalid-login-credentials'];
+      if (noAccountCodes.includes(error.code)) {
+        setAuthMessage('No account found with that username and password. If you are new, use Sign up instead.');
+      } else {
+        setAuthMessage(describeAuthError(error));
+      }
+      return;
+    }
   }
 
   usernameInput.value = '';
@@ -759,6 +776,9 @@ document.addEventListener('click', (event) => {
 });
 
 document.getElementById('login-form').addEventListener('submit', handleLogin);
+document.getElementById('auth-toggle-btn').addEventListener('click', () => {
+  setAuthMode(authMode === 'login' ? 'signup' : 'login');
+});
 document.getElementById('open-pack').addEventListener('click', openPack);
 document.getElementById('battle-btn').addEventListener('click', resolveBattle);
 document.getElementById('battle-mode').addEventListener('change', (event) => {

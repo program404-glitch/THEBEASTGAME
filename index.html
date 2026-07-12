@@ -19,7 +19,7 @@
     <div class="app-shell">
       <section class="auth-card" id="auth-card">
         <form id="login-form" class="login-form">
-          <h2>Login</h2>
+          <h2 id="auth-title">Login</h2>
           <label class="auth-field">
             <span>Username</span>
             <input id="username" type="text" name="username" placeholder="Enter your username" required />
@@ -28,8 +28,12 @@
             <span>Password</span>
             <input id="password" type="password" name="password" placeholder="Enter your password" required />
           </label>
-          <button type="submit">Login</button>
-          <p id="auth-message" class="auth-message">Enter any username and password to continue.</p>
+          <button type="submit" id="auth-submit">Login</button>
+          <p id="auth-message" class="auth-message">Enter your username and password to continue.</p>
+          <p class="auth-toggle">
+            <span id="auth-toggle-question">Don't have an account?</span>
+            <button type="button" id="auth-toggle-btn" class="link-button">Sign up</button>
+          </p>
         </form>
         <div id="welcome-panel" class="welcome-panel hidden"></div>
       </section>
