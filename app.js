@@ -142,6 +142,7 @@ let authMode = 'login'; // 'login' | 'signup'
 
 const auth = firebase.auth();
 const db = firebase.firestore();
+showLoading(); // cleared by the first onAuthStateChanged callback below
 
 // ---------------------------------------------------------------
 // Helpers: username <-> Firebase Auth email mapping
@@ -185,11 +186,14 @@ function getSerializableStateForAccount() {
 async function persist() {
   render();
   if (!currentUser) return;
+  showLoading();
   try {
     await db.collection('users').doc(currentUser.uid).set(getSerializableStateForAccount(), { merge: true });
   } catch (error) {
     console.warn('Could not sync to Firestore:', error);
     setAuthMessage('Could not save to the cloud. Check your connection.');
+  } finally {
+    hideLoading();
   }
 }
 
@@ -206,6 +210,7 @@ async function loadStateFromFirestore(uid) {
 // ---------------------------------------------------------------
 auth.onAuthStateChanged(async (user) => {
   currentUser = user;
+  hideLoading(); // clears the initial page-load spinner shown below
 
   if (!user) {
     state = { ...DEFAULT_STATE };
@@ -217,14 +222,19 @@ auth.onAuthStateChanged(async (user) => {
     return;
   }
 
-  const existing = await loadStateFromFirestore(user.uid);
-  if (existing) {
-    state = existing;
-  } else {
-    // First time this uid has been seen (shouldn't normally happen since we
-    // create the doc at sign-up, but this is a safe fallback).
-    state = { ...DEFAULT_STATE, username: deriveUsernameFromEmail(user.email) };
-    await db.collection('users').doc(user.uid).set(getSerializableStateForAccount());
+  showLoading();
+  try {
+    const existing = await loadStateFromFirestore(user.uid);
+    if (existing) {
+      state = existing;
+    } else {
+      // First time this uid has been seen (shouldn't normally happen since we
+      // create the doc at sign-up, but this is a safe fallback).
+      state = { ...DEFAULT_STATE, username: deriveUsernameFromEmail(user.email) };
+      await db.collection('users').doc(user.uid).set(getSerializableStateForAccount());
+    }
+  } finally {
+    hideLoading();
   }
 
   if (!suppressNextAuthMessage) {
@@ -236,6 +246,22 @@ auth.onAuthStateChanged(async (user) => {
 
 function deriveUsernameFromEmail(email) {
   return email.split('@')[0];
+}
+
+let loadingCount = 0;
+
+function showLoading() {
+  loadingCount += 1;
+  const indicator = document.getElementById('loading-indicator');
+  if (indicator) indicator.classList.remove('hidden');
+}
+
+function hideLoading() {
+  loadingCount = Math.max(0, loadingCount - 1);
+  if (loadingCount === 0) {
+    const indicator = document.getElementById('loading-indicator');
+    if (indicator) indicator.classList.add('hidden');
+  }
 }
 
 function setAuthMessage(text) {
@@ -662,27 +688,32 @@ async function handleChangeUsername() {
   const username = newUsername.trim();
   const newEmail = usernameToEmail(username);
 
+  showLoading();
   try {
-    await currentUser.updateEmail(newEmail);
-  } catch (error) {
-    if (error.code === 'auth/requires-recent-login') {
-      const ok = await reauthenticate('Please re-enter your current password to confirm this change');
-      if (!ok) return;
-      try {
-        await currentUser.updateEmail(newEmail);
-      } catch (retryError) {
-        setAuthMessage(describeAuthError(retryError));
+    try {
+      await currentUser.updateEmail(newEmail);
+    } catch (error) {
+      if (error.code === 'auth/requires-recent-login') {
+        const ok = await reauthenticate('Please re-enter your current password to confirm this change');
+        if (!ok) return;
+        try {
+          await currentUser.updateEmail(newEmail);
+        } catch (retryError) {
+          setAuthMessage(describeAuthError(retryError));
+          return;
+        }
+      } else {
+        setAuthMessage(describeAuthError(error));
         return;
       }
-    } else {
-      setAuthMessage(describeAuthError(error));
-      return;
     }
-  }
 
-  state.username = username;
-  await persist();
-  setAuthMessage(`Username updated to ${username}.`);
+    state.username = username;
+    await persist();
+    setAuthMessage(`Username updated to ${username}.`);
+  } finally {
+    hideLoading();
+  }
 }
 
 async function handleChangePassword() {
@@ -692,30 +723,40 @@ async function handleChangePassword() {
     return;
   }
 
+  showLoading();
   try {
-    await currentUser.updatePassword(newPassword.trim());
-  } catch (error) {
-    if (error.code === 'auth/requires-recent-login') {
-      const ok = await reauthenticate('Please re-enter your current password to confirm this change');
-      if (!ok) return;
-      try {
-        await currentUser.updatePassword(newPassword.trim());
-      } catch (retryError) {
-        setAuthMessage(describeAuthError(retryError));
+    try {
+      await currentUser.updatePassword(newPassword.trim());
+    } catch (error) {
+      if (error.code === 'auth/requires-recent-login') {
+        const ok = await reauthenticate('Please re-enter your current password to confirm this change');
+        if (!ok) return;
+        try {
+          await currentUser.updatePassword(newPassword.trim());
+        } catch (retryError) {
+          setAuthMessage(describeAuthError(retryError));
+          return;
+        }
+      } else {
+        setAuthMessage(describeAuthError(error));
         return;
       }
-    } else {
-      setAuthMessage(describeAuthError(error));
-      return;
     }
-  }
 
-  setAuthMessage('Password updated.');
+    setAuthMessage('Password updated.');
+  } finally {
+    hideLoading();
+  }
 }
 
 async function handleLogout() {
   closeAccountDrawer();
-  await auth.signOut();
+  showLoading();
+  try {
+    await auth.signOut();
+  } finally {
+    hideLoading();
+  }
 }
 
 async function handleDeleteAccount() {
@@ -723,27 +764,32 @@ async function handleDeleteAccount() {
   if (!confirmed) return;
 
   const uid = currentUser.uid;
+  showLoading();
   try {
-    await db.collection('users').doc(uid).delete();
-    await currentUser.delete();
-  } catch (error) {
-    if (error.code === 'auth/requires-recent-login') {
-      const ok = await reauthenticate('Please re-enter your password to confirm account deletion');
-      if (!ok) return;
-      try {
-        await db.collection('users').doc(uid).delete();
-        await currentUser.delete();
-      } catch (retryError) {
-        setAuthMessage(describeAuthError(retryError));
+    try {
+      await db.collection('users').doc(uid).delete();
+      await currentUser.delete();
+    } catch (error) {
+      if (error.code === 'auth/requires-recent-login') {
+        const ok = await reauthenticate('Please re-enter your password to confirm account deletion');
+        if (!ok) return;
+        try {
+          await db.collection('users').doc(uid).delete();
+          await currentUser.delete();
+        } catch (retryError) {
+          setAuthMessage(describeAuthError(retryError));
+          return;
+        }
+      } else {
+        setAuthMessage(describeAuthError(error));
         return;
       }
-    } else {
-      setAuthMessage(describeAuthError(error));
-      return;
     }
-  }
 
-  closeAccountDrawer();
+    closeAccountDrawer();
+  } finally {
+    hideLoading();
+  }
 }
 
 function describeAuthError(error) {
@@ -818,6 +864,7 @@ async function handleLogin(event) {
 
   if (authMode === 'signup') {
     setAuthMessage('Creating your account…');
+    showLoading();
     try {
       suppressNextAuthMessage = true;
       const credential = await auth.createUserWithEmailAndPassword(email, password);
@@ -833,9 +880,12 @@ async function handleLogin(event) {
         setAuthMessage(describeAuthError(error));
       }
       return;
+    } finally {
+      hideLoading();
     }
   } else {
     setAuthMessage('Signing in…');
+    showLoading();
     try {
       await auth.signInWithEmailAndPassword(email, password);
       // onAuthStateChanged will load the Firestore doc and re-render.
@@ -847,6 +897,8 @@ async function handleLogin(event) {
         setAuthMessage(describeAuthError(error));
       }
       return;
+    } finally {
+      hideLoading();
     }
   }
 

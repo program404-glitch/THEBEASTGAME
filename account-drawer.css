@@ -1,4 +1,38 @@
 /* ============================================================
+   Loading indicator (spinning cat)
+   ============================================================ */
+.loading-indicator {
+  position: fixed;
+  bottom: 20px;
+  right: 20px;
+  width: 52px;
+  height: 52px;
+  border-radius: 50%;
+  background: rgba(28, 31, 43, 0.9);
+  border: 2px solid rgba(255, 255, 255, 0.15);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 26px;
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.35);
+  z-index: 2000;
+}
+
+.loading-indicator.hidden {
+  display: none;
+}
+
+.loading-cat {
+  display: inline-block;
+  animation: spin-cat 0.9s linear infinite;
+}
+
+@keyframes spin-cat {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+/* ============================================================
    Collapsible panels (Your deck / THE FIRST COLLECTION)
    ============================================================ */
 .panel-toggle {
