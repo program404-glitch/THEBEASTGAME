@@ -110,6 +110,22 @@ CARDS.forEach(card => { card.set = COLLECTION_NAME; });
 
 const AVATAR_OPTIONS = ['🦁', '🐺', '🦈', '🐆', '🐅', '🐻', '🐉', '🦂'];
 
+let loadingCount = 0;
+
+function showLoading() {
+  loadingCount += 1;
+  const indicator = document.getElementById('loading-indicator');
+  if (indicator) indicator.classList.remove('hidden');
+}
+
+function hideLoading() {
+  loadingCount = Math.max(0, loadingCount - 1);
+  if (loadingCount === 0) {
+    const indicator = document.getElementById('loading-indicator');
+    if (indicator) indicator.classList.add('hidden');
+  }
+}
+
 const RARITY_PRICES = {
   Common: 6,
   Rare: 10,
@@ -246,22 +262,6 @@ auth.onAuthStateChanged(async (user) => {
 
 function deriveUsernameFromEmail(email) {
   return email.split('@')[0];
-}
-
-let loadingCount = 0;
-
-function showLoading() {
-  loadingCount += 1;
-  const indicator = document.getElementById('loading-indicator');
-  if (indicator) indicator.classList.remove('hidden');
-}
-
-function hideLoading() {
-  loadingCount = Math.max(0, loadingCount - 1);
-  if (loadingCount === 0) {
-    const indicator = document.getElementById('loading-indicator');
-    if (indicator) indicator.classList.add('hidden');
-  }
 }
 
 function setAuthMessage(text) {
